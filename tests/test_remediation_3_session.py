@@ -20,6 +20,40 @@ def test_token_fails_when_the_session_secret_changes(monkeypatch):
     assert read_token(token) is None
 
 
+def test_cookie_flags_are_lax_locally_and_none_in_production(monkeypatch):
+    monkeypatch.setattr(sessions.Config, "FLASK_ENV", "development")
+    assert sessions._cookie_flags() == {"secure": False, "samesite": "Lax"}
+    monkeypatch.setattr(sessions.Config, "FLASK_ENV", "production")
+    assert sessions._cookie_flags() == {"secure": True, "samesite": "None"}
+
+
+def test_production_login_sets_samesite_none(tmp_path, monkeypatch):
+    monkeypatch.setattr(db_mod, "DB_NAME", str(tmp_path / "cookie-flags.db"))
+    monkeypatch.setattr(config.Config, "RATELIMIT_STORAGE_BACKEND", "memory")
+    monkeypatch.setattr(config.Config, "FLASK_ENV", "production")
+    monkeypatch.setattr(config.Config, "CORS_ORIGINS", ["https://app.example"])
+    monkeypatch.setattr(sessions.Config, "FLASK_ENV", "production")
+    gw_mod._gateway = None
+    app = create_app()
+    app.config["TESTING"] = True
+    client = app.test_client()
+    body = {
+        "email": "prod-cookie@example.com",
+        "password": "correct-horse",
+        "confirm_password": "correct-horse",
+    }
+    signed = client.post(
+        "/api/auth/signup",
+        data=json.dumps(body),
+        headers={"Content-Type": "application/json"},
+    )
+    assert signed.status_code == 201
+    cookie_header = signed.headers.get("Set-Cookie", "")
+    assert "finpilot_session=" in cookie_header
+    assert "SameSite=None" in cookie_header
+    assert "Secure" in cookie_header
+
+
 def test_validate_rejects_a_session_secret_that_matches_the_api_key(monkeypatch):
     monkeypatch.setattr(config.Config, "GROQ_API_KEY", "k")
     monkeypatch.setattr(config.Config, "API_SECRET_KEY", "same-secret-value-that-is-long-enough")

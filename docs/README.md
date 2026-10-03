@@ -43,6 +43,14 @@ What was built, and the reports from running it.
 - `GROQ_PATH_B_IMPLEMENTATION_REPORT.md` — what the Groq move changed
 - `testing_reports/` — one report for each quality wave, remediation issue, the database move, and each review follow-up
 
+## deployment
+
+How the system is meant to be hosted.
+
+- `VERCEL_RAILWAY_DEPLOY_GUIDE.md` — step-by-step: Docker image, Docker Hub, Railway, Vercel (locked path)
+- `DEPLOYMENT_STRATEGY.md` — Vercel, Railway trial, Docker Hub, GitHub Actions (strategy)
+- `GCP_FREE_CREDITS_DEPLOYMENT.md` — GCP services and setup on free credits (alternate)
+
 ## product-audit
 
 What the running product is, judged from the repository. These are reviews, not setup steps.
@@ -61,4 +69,4 @@ What the running product is, judged from the repository. These are reviews, not 
 - `09-monetization-packaging.md` — units the product could charge for
 - `product-inventory.json` — structured inventory
 
-`architecture/ARCHITECTURE.md` is the current system. `architecture/NEW_DEVICE_SETUP.md` is how to run it on a new machine. `planning/` is the order the work was planned.
+`architecture/ARCHITECTURE.md` is the current system. `architecture/NEW_DEVICE_SETUP.md` is how to run it on a new machine. `planning/` is the order the work was planned. `deployment/VERCEL_RAILWAY_DEPLOY_GUIDE.md` is the locked how-to for Vercel + Railway + Docker Hub.

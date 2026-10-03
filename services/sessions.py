@@ -27,20 +27,34 @@ def read_token(token: str) -> dict | None:
     return data
 
 
+def _cookie_flags():
+    """Local Vite proxy stays SameSite=Lax. Vercel→Railway needs None + Secure."""
+    local = Config.FLASK_ENV in ("development", "dev", "local")
+    if local:
+        return {"secure": False, "samesite": "Lax"}
+    return {"secure": True, "samesite": "None"}
+
+
 def attach_cookie(response, account_id: int, session_version: int):
-    secure = Config.FLASK_ENV not in ("development", "dev", "local")
+    flags = _cookie_flags()
     response.set_cookie(
         COOKIE_NAME,
         issue_token(account_id, session_version),
         max_age=MAX_AGE_SECONDS,
         httponly=True,
-        secure=secure,
-        samesite="Lax",
+        secure=flags["secure"],
+        samesite=flags["samesite"],
         path="/",
     )
     return response
 
 
 def clear_cookie(response):
-    response.delete_cookie(COOKIE_NAME, path="/")
+    flags = _cookie_flags()
+    response.delete_cookie(
+        COOKIE_NAME,
+        path="/",
+        secure=flags["secure"],
+        samesite=flags["samesite"],
+    )
     return response
