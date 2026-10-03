@@ -44,5 +44,6 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD curl -fsS "http://127.0.0.1:${PORT:-5000}/api/health" || exit 1
 
-# Default = API. Railway overrides the command for the worker service.
-CMD gunicorn --workers 2 --timeout 120 --bind 0.0.0.0:${PORT:-5000} "app:create_app()"
+# Default = API. Set FINPILOT_PROCESS=worker on the Railway worker service.
+ENV FINPILOT_PROCESS=api
+CMD ["sh", "-c", "if [ \"$FINPILOT_PROCESS\" = \"worker\" ]; then exec python -m services.jobs.worker; else exec gunicorn --workers 2 --timeout 120 --bind 0.0.0.0:${PORT:-5000} \"app:create_app()\"; fi"]
