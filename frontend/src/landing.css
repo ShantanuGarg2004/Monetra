@@ -1,4 +1,4 @@
-/* FinPilot landing page */
+/* Monetra landing page */
 .landing-page { background: radial-gradient(ellipse 60% 38% at 78% 7%, rgba(93,63,22,.14), transparent 70%), #050505; min-height:100vh; color:var(--white); overflow-x: hidden; }
 .landing-nav { align-items:center; display:flex; height:76px; justify-content:space-between; margin:0 auto; max-width:1240px; padding:0 28px; position:relative; z-index:10; }
 .landing-nav nav a,.nav-login { color:#8f95a2; font-size:12px; font-weight:600; text-decoration:none; transition:color .2s; } .landing-nav nav a:hover,.nav-login:hover { color:var(--white); }

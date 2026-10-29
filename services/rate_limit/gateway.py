@@ -142,9 +142,15 @@ class RateLimitGateway:
 
     def note_resend(self, email: str) -> LimitDecision | None:
         """Spend auth_resend for a verification resend or a password-reset send."""
+        return self._note_email_bucket(self.policies.auth_resend, email)
+
+    def note_login_code(self, email: str) -> LimitDecision | None:
+        """Spend auth_login_code before emailing a sign-in code. Capacity 5, one token per 60 seconds."""
+        return self._note_email_bucket(self.policies.auth_login_code, email)
+
+    def _note_email_bucket(self, rule: LimitRule, email: str) -> LimitDecision | None:
         if not Config.RATELIMIT_ENABLED:
             return None
-        rule = self.policies.auth_resend
         normalized = (email or "").strip().lower()
         digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         key = f"email:{digest}:{rule.route_class}"

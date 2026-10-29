@@ -1,4 +1,4 @@
-/* Status + progress colors mapped to the FinPilot navy/emerald system. */
+/* Status + progress colors mapped to the Monetra navy/emerald system. */
 
 export function profileTitle(user) {
   if (!user) return "";

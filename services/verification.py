@@ -13,6 +13,7 @@ from database.repository import (
     replace_verify_challenge,
 )
 from services.emailer import send_email
+from services.mail_content import compose
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +34,21 @@ def send_verification(account: dict) -> bool:
     """Mint a verify_email challenge and send the link. False means the mail was not accepted."""
     raw = secrets.token_urlsafe(32)
     row = replace_verify_challenge(int(account["id"]), _hash(raw))
-    text = (
-        "Confirm your FinPilot email.\n\n"
-        "Open this link and press the confirm button. Opening the link does not use it up.\n"
-        f"{_link(row['id'], raw)}\n\n"
-        "The link expires in 30 minutes."
+    recipient = (account.get("email") or "").strip().lower()
+    link = _link(row["id"], raw)
+    text, html = compose(
+        title="Confirm your email",
+        to_address=recipient,
+        paragraphs=[
+            "Use the button below to confirm this address for your new Monetra account.",
+            "You only do this once, when the account is created. Later sign-ins use a one-time code instead of this link.",
+            "Opening the link does not use it up. Press the confirm button on the page.",
+        ],
+        action_label="Confirm email",
+        action_url=link,
+        expiry="This link expires in 30 minutes.",
     )
-    ok = send_email(account["email"], "Confirm your FinPilot email", text)
+    ok = send_email(recipient, "Confirm your Monetra email", text, html)
     if not ok:
         logger.warning("Verification email was not sent for account %s", account["id"])
     return ok

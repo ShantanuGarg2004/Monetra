@@ -5,6 +5,7 @@ import config
 import database.db as db_mod
 from app import create_app
 from database.repository import get_account_by_email, issue_api_credential, mark_email_verified
+from tests.auth_client import complete_login
 from services.rate_limit import gateway as gw_mod
 import services.password_reset as password_reset
 import services.verification as verification
@@ -32,7 +33,7 @@ def _post(client, path, body):
 def _capture(monkeypatch):
     sent = []
 
-    def fake_send(to, subject, text):
+    def fake_send(to, subject, text, html=None):
         sent.append({"to": to, "subject": subject, "text": text})
         return True
 
@@ -108,10 +109,7 @@ def test_reset_revokes_both_sessions_and_the_secret_once(tmp_path, monkeypatch):
     assert created.status_code == 201
     account_id = created.get_json()["account_id"]
     mark_email_verified(account_id)
-    signed = _post(second, "/api/auth/login", {
-        "email": "owner@example.com",
-        "password": "correct-horse",
-    })
+    signed = complete_login(second, "owner@example.com", "correct-horse")
     assert signed.status_code == 200
     assert first.get("/api/auth/me").status_code == 200
     assert second.get("/api/auth/me").status_code == 200

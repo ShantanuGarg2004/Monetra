@@ -29,7 +29,7 @@ def _post(client, path, body):
 def _capture(monkeypatch):
     sent = {}
 
-    def fake_send(to, subject, text):
+    def fake_send(to, subject, text, html=None):
         sent["to"] = to
         sent["subject"] = subject
         sent["text"] = text

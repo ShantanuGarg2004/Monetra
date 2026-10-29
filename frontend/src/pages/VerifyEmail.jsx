@@ -23,7 +23,7 @@ export function VerifyPending({ account, onSignOut }) {
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
         <h1 className="font-display text-3xl font-bold text-white">Confirm your email.</h1>
         <p className="mt-3 text-sm leading-6 text-muted">
-          We sent a link to {account.email}. Open it and press the confirm button. Your profile stays closed until that is done.
+          We sent a confirmation link to {account.email}. This happens once, when the account is created. After you confirm it, signing in uses a code sent to that same address.
         </p>
         {message && <p className="mt-4 text-sm leading-6 text-gold">{message}</p>}
         <Button type="button" loading={loading} className="mt-6" onClick={resend}>Resend email</Button>

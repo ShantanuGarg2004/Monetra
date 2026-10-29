@@ -150,7 +150,7 @@ export default function ChatPage({ userId, userGoal }) {
             </button>
           </div>
           <p className="mt-1.5 text-center text-[10px] text-on-surface-variant/40">
-            FinPilot AI can make mistakes. Verify critical financial data.
+            Monetra can make mistakes. Verify critical financial data.
           </p>
         </div>
       </section>

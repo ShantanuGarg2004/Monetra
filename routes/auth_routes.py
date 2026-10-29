@@ -18,6 +18,7 @@ from schemas import (
     change_password_schema,
     delete_account_schema,
     forgot_password_schema,
+    login_code_schema,
     login_schema,
     new_password_schema,
     passwords_match,
@@ -200,6 +201,93 @@ def login():
         return _failed_login(data["email"])
     if not check_password_hash(account["password_hash"], data["password"]):
         return _failed_login(data["email"])
+    if account.get("email_verified_at") is None:
+        return _signup_link_required(account)
+    from services.login_code import code_message, send_login_code
+
+    status, decision = send_login_code(account)
+    if status == "limited":
+        gateway = get_gateway()
+        if gateway is not None and decision is not None:
+            return gateway.denial_response(decision)
+        return jsonify({"error": "Too many requests. Try again shortly.", "code": "rate_limit_exceeded"}), 429
+    if status != "sent":
+        return jsonify({
+            "error": f"The sign-in code could not be sent to {account['email']}. Try again.",
+            "code": "email_delivery_failed",
+        }), 503
+    resp = jsonify({
+        "otp_required": True,
+        "email": account["email"],
+        "message": code_message(account["email"]),
+    })
+    return clear_cookies(resp)
+
+
+def _signup_link_required(account: dict):
+    """A correct password on an unconfirmed account sends the signup link and does not sign in."""
+    from services.login_code import unconfirmed_message
+    from services.verification import send_verification
+
+    recipient = account["email"]
+    gateway = get_gateway()
+    if gateway is not None:
+        decision = gateway.note_resend(recipient)
+        if decision is not None and not decision.allowed:
+            resp = jsonify({
+                "error": unconfirmed_message(recipient),
+                "code": "email_unverified",
+                "email": recipient,
+            })
+            resp.status_code = 403
+            return clear_cookies(resp)
+    if not send_verification(account):
+        return jsonify({
+            "error": f"The signup link could not be sent to {recipient}. Try again.",
+            "code": "email_delivery_failed",
+            "email": recipient,
+        }), 503
+    resp = jsonify({
+        "error": unconfirmed_message(recipient),
+        "code": "email_unverified",
+        "email": recipient,
+    })
+    resp.status_code = 403
+    return clear_cookies(resp)
+
+
+@auth_bp.route("/auth/login-code", methods=["POST"])
+def login_code():
+    """
+    Finish sign-in with the emailed code. A correct password does not set a cookie by itself.
+    ---
+    tags:
+      - Auth
+    security: []
+    responses:
+      200:
+        description: Signed in
+      400:
+        description: That code is incorrect or expired
+    """
+    from services.login_code import INVALID_CODE, VerificationStoreError, confirm_login_code
+
+    raw = request.get_json(silent=True)
+    if not raw:
+        return jsonify({"error": "Invalid or missing JSON body"}), 400
+    try:
+        data = login_code_schema.load(raw)
+    except ValidationError as exc:
+        return jsonify({"error": "Validation failed", "details": exc.messages}), 400
+    try:
+        account = confirm_login_code(data["email"], data["code"])
+    except VerificationStoreError as exc:
+        gateway = get_gateway()
+        if gateway is not None:
+            return gateway.denial_response(exc.decision)
+        return jsonify({"error": "Rate limit exceeded", "code": "rate_limit_exceeded"}), 429
+    if account is None:
+        return jsonify({"error": INVALID_CODE, "code": "invalid_code"}), 400
     return _signed_in(account, 200)
 
 
@@ -515,7 +603,7 @@ def change_email():
         }), 401
     if account.get("email_verified_at") is None:
         return jsonify({
-            "error": "Verify your email before using this part of FinPilot.",
+            "error": "Verify your email before using this part of Monetra.",
             "code": "email_unverified",
         }), 403
     raw = request.get_json(silent=True)

@@ -175,6 +175,23 @@ class LoginSchema(Schema):
         return data
 
 
+class LoginCodeSchema(Schema):
+    email = fields.Email(required=True)
+    code = fields.String(
+        required=True,
+        validate=validate.Regexp(r"^\d{6}$", error="code must be 6 digits"),
+    )
+
+    @pre_load
+    def normalize(self, data, **kwargs):
+        if isinstance(data, dict):
+            if isinstance(data.get("email"), str):
+                data["email"] = data["email"].strip().lower()
+            if isinstance(data.get("code"), str):
+                data["code"] = "".join(data["code"].split())
+        return data
+
+
 class ForgotPasswordSchema(Schema):
     email = fields.Email(required=True, error_messages={"required": "email is required", "invalid": "email must look like an email"})
 
@@ -248,6 +265,7 @@ chat_schema            = ChatSchema()
 goal_plan_schema       = GoalPlanSchema()
 signup_schema          = SignupSchema()
 login_schema           = LoginSchema()
+login_code_schema      = LoginCodeSchema()
 forgot_password_schema = ForgotPasswordSchema()
 new_password_schema    = NewPasswordSchema()
 change_email_schema    = ChangeEmailSchema()

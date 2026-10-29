@@ -29,7 +29,7 @@ export default function Sidebar({ activePage, onNavigate, hasUser, open, onClose
         <div className="px-md mb-lg flex items-center justify-between">
           <div className="min-w-0">
             <h1 className="font-headline-md text-[18px] font-bold text-on-surface leading-tight truncate">
-              FinPilot <span className="text-primary">AI</span>
+              Monetra
             </h1>
             <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mt-1">
               Wealth Manager

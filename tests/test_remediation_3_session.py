@@ -6,7 +6,8 @@ import pytest
 import config
 import database.db as db_mod
 from app import create_app
-from database.repository import get_account_by_email, get_session_by_id, issue_api_credential
+from database.repository import get_account_by_email, get_session_by_id, issue_api_credential, mark_email_verified
+from tests.auth_client import complete_login
 from services.rate_limit import gateway as gw_mod
 import services.sessions as sessions
 from services.sessions import issue_token, read_token
@@ -117,11 +118,8 @@ def _signup(client, email):
 
 
 def _login(client, email):
-    return client.post(
-        "/api/auth/login",
-        data=json.dumps({"email": email, "password": "correct-horse"}),
-        headers={"Content-Type": "application/json"},
-    )
+    mark_email_verified(get_account_by_email(email)["id"])
+    return complete_login(client, email, "correct-horse")
 
 
 def test_logout_revokes_that_session_and_leaves_the_version(tmp_path, monkeypatch):

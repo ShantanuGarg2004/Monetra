@@ -8,6 +8,7 @@ import secrets
 from config import Config
 from database.repository import complete_email_change, replace_challenge
 from services.emailer import send_email
+from services.mail_content import compose
 from services.verification import INVALID_LINK, VerificationStoreError, inspect_challenge
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,8 @@ logger = logging.getLogger(__name__)
 PURPOSE = "change_email"
 CHANGE_ACCEPTED = "Confirm the new address from the link we sent. This address stays until then."
 CHANGE_DONE = "Email updated. Sign in again with the new address."
-NOTICE_SUBJECT = "FinPilot email change requested"
-LINK_SUBJECT = "Confirm your new FinPilot email"
+NOTICE_SUBJECT = "Monetra email change requested"
+LINK_SUBJECT = "Confirm your new Monetra email"
 
 
 def _hash(raw: str) -> str:
@@ -37,20 +38,31 @@ def request_email_change(account: dict, new_email: str) -> str:
     raw = secrets.token_urlsafe(32)
     target = new_email.strip().lower()
     row = replace_challenge(int(account["id"]), PURPOSE, _hash(raw), target_email=target)
-    link_text = (
-        "Confirm the new email for your FinPilot account.\n\n"
-        "Open this link and press the confirm button. Opening the link does not use it up.\n"
-        f"{_link(row['id'], raw)}\n\n"
-        "The link expires in 30 minutes.\n"
-        "You will need to sign in again with this address.\n"
+    link = _link(row["id"], raw)
+    link_text, link_html = compose(
+        title="Confirm your new email",
+        to_address=target,
+        paragraphs=[
+            "Confirm this address for your Monetra account.",
+            "Opening the link does not use it up. Press the confirm button on the page.",
+            "You will need to sign in again with this address.",
+        ],
+        action_label="Confirm new email",
+        action_url=link,
+        expiry="This link expires in 30 minutes.",
     )
-    notice_text = (
-        "Someone requested an email change on your FinPilot account.\n\n"
-        "If this was you, confirm it from the new address. "
-        "If this was not you, sign in and keep this address.\n"
+    current = (account.get("email") or "").strip().lower()
+    notice_text, notice_html = compose(
+        title="Email change requested",
+        to_address=current,
+        paragraphs=[
+            "Someone asked to change the email on this Monetra account.",
+            "If this was you, confirm it from the new address. If this was not you, sign in and keep this address.",
+        ],
+        expiry="No action is required on this address.",
     )
-    link_ok = send_email(target, LINK_SUBJECT, link_text)
-    notice_ok = send_email(account["email"], NOTICE_SUBJECT, notice_text)
+    link_ok = send_email(target, LINK_SUBJECT, link_text, link_html)
+    notice_ok = send_email(current, NOTICE_SUBJECT, notice_text, notice_html)
     if not notice_ok:
         logger.warning("Email-change notice was not sent for account %s", account["id"])
     if not link_ok:

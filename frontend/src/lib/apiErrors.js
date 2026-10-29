@@ -49,7 +49,7 @@ export function toApiError(input, res = null, data = null) {
 
   if (!res) {
     return new ApiError({
-      message: "Can't reach the FinPilot API. Confirm the backend is running on port 5000.",
+      message: "Can't reach the Monetra API. Confirm the backend is running on port 5000.",
       status: 0,
       code: "network_error",
     });
@@ -83,7 +83,7 @@ export function toApiError(input, res = null, data = null) {
   } else if (code === "pdf_unavailable") {
     message = data?.error || "PDF is not available right now.";
   } else if (code === "network_error") {
-    message = "Can't reach the FinPilot API. Confirm the backend is running on port 5000.";
+    message = "Can't reach the Monetra API. Confirm the backend is running on port 5000.";
   }
 
   return new ApiError({ message, status, code, details: data?.details ?? null, retryAfter });

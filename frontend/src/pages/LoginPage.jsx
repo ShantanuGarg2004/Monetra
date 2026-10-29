@@ -38,8 +38,8 @@ function BrandMark() {
     <div className="flex items-center gap-3">
       <div className="brand-mark"><span /></div>
       <div>
-        <div className="font-display text-[15px] font-bold tracking-tight text-white">FinPilot <span className="text-gold">AI</span></div>
-        <div className="text-[9px] font-semibold uppercase tracking-[0.22em] text-muted">Premium wealth pilot</div>
+        <div className="font-display text-[15px] font-bold tracking-tight text-white">Monetra</div>
+        <div className="text-[9px] font-semibold uppercase tracking-[0.22em] text-muted">Wealth, clearly</div>
       </div>
     </div>
   );
@@ -69,12 +69,18 @@ function AuthPanel({ mode, setMode, onSignedIn, onClose }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [code, setCode] = useState("");
+  const [sentTo, setSentTo] = useState("");
+  const [step, setStep] = useState("form");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
 
   function switchMode(next) {
     setMode(next);
+    setStep("form");
+    setCode("");
+    setSentTo("");
     setError("");
     setNotice("");
   }
@@ -89,6 +95,13 @@ function AuthPanel({ mode, setMode, onSignedIn, onClose }) {
     }
     setLoading(true);
     try {
+      if (step === "code") {
+        onSignedIn(await apiFetch("/auth/login-code", {
+          method: "POST",
+          body: JSON.stringify({ email, code }),
+        }));
+        return;
+      }
       if (mode === "forgot") {
         const body = await apiFetch("/auth/forgot-password", {
           method: "POST",
@@ -99,7 +112,14 @@ function AuthPanel({ mode, setMode, onSignedIn, onClose }) {
       }
       const path = mode === "signup" ? "/auth/signup" : "/auth/login";
       const body = mode === "signup" ? { email, password, confirm_password: confirm } : { email, password };
-      onSignedIn(await apiFetch(path, { method: "POST", body: JSON.stringify(body) }));
+      const signed = await apiFetch(path, { method: "POST", body: JSON.stringify(body) });
+      if (mode === "signin" && signed.otp_required) {
+        setSentTo(signed.email || email);
+        setNotice(signed.message);
+        setStep("code");
+        return;
+      }
+      onSignedIn(signed);
     } catch (err) {
       setError(err.message || "Email or password is incorrect.");
     } finally {
@@ -108,25 +128,35 @@ function AuthPanel({ mode, setMode, onSignedIn, onClose }) {
   }
 
   return createPortal(
-    <div className="auth-backdrop" role="dialog" aria-modal="true" aria-label={mode === "signup" ? "Create your account" : "Sign in"} onClick={onClose}>
+    <div className="auth-backdrop" role="dialog" aria-modal="true" aria-label={step === "code" ? "Enter your sign-in code" : mode === "signup" ? "Create your account" : "Sign in"} onClick={onClose}>
       <div className="auth-panel" onClick={(event) => event.stopPropagation()}>
         <button className="auth-close" onClick={onClose} aria-label="Close"><Icon name="close" size={20} /></button>
-        <div className="mb-7"><BrandMark /><h2 className="mt-8 font-display text-3xl font-bold text-white">{mode === "signup" ? "Build your money map." : mode === "forgot" ? "Reset your password." : "Welcome back."}</h2><p className="mt-2 text-sm leading-6 text-muted">{mode === "signup" ? "Your financial co-pilot is ready when you are." : mode === "forgot" ? "Enter the email for the account." : "Pick up where your financial clarity left off."}</p></div>
+        <div className="mb-7"><BrandMark /><h2 className="mt-8 font-display text-3xl font-bold text-white">{step === "code" ? "Enter your code." : mode === "signup" ? "Build your money map." : mode === "forgot" ? "Reset your password." : "Welcome back."}</h2><p className="mt-2 text-sm leading-6 text-muted">{step === "code" ? `We sent a 6-digit code to ${sentTo}. It expires in 10 minutes.` : mode === "signup" ? "We will email a confirmation link to the address you enter. You confirm the account once." : mode === "forgot" ? "Enter the email for the account." : "A confirmed account receives a sign-in code. The signup link is not used again."}</p></div>
         <form onSubmit={submit} className="space-y-4">
-          <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
-          {mode !== "forgot" && <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete={mode === "signup" ? "new-password" : "current-password"} />}
-          {mode === "signup" && <p className="text-[12px] leading-5 text-muted">Password must be at least 12 characters.</p>}
-          {mode === "signup" && <TextField label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required autoComplete="new-password" />}
-          {mode === "signin" && (
-            <button type="button" className="text-[13px] font-semibold text-gold hover:text-white" onClick={() => switchMode("forgot")}>Forgot password?</button>
+          {step === "code" ? (
+            <TextField label="Sign-in code" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} required maxLength={6} />
+          ) : (
+            <>
+              <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+              {mode !== "forgot" && <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete={mode === "signup" ? "new-password" : "current-password"} />}
+              {mode === "signup" && <p className="text-[12px] leading-5 text-muted">Password must be at least 12 characters.</p>}
+              {mode === "signup" && <TextField label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required autoComplete="new-password" />}
+              {mode === "signin" && (
+                <button type="button" className="text-[13px] font-semibold text-gold hover:text-white" onClick={() => switchMode("forgot")}>Forgot password?</button>
+              )}
+            </>
           )}
           {error && <p className="text-[13px] text-error">{error}</p>}
           {notice && <p className="text-sm leading-6 text-gold">{notice}</p>}
-          <Button type="submit" loading={loading} className="w-full">{mode === "signup" ? "Create your account" : mode === "forgot" ? "Send reset link" : "Sign in"}</Button>
+          <Button type="submit" loading={loading} className="w-full">{step === "code" ? "Confirm code" : mode === "signup" ? "Create your account" : mode === "forgot" ? "Send reset link" : "Sign in"}</Button>
         </form>
-        <button type="button" className="mt-5 text-[13px] font-semibold text-gold hover:text-white" onClick={() => switchMode(mode === "signin" ? "signup" : "signin")}>
-          {mode === "signin" ? "New to FinPilot? Create an account" : "Already have an account? Sign in"}
-        </button>
+        {step === "code" ? (
+          <button type="button" className="mt-5 text-[13px] font-semibold text-gold hover:text-white" onClick={() => { setStep("form"); setCode(""); setError(""); }}>Use a different email</button>
+        ) : (
+          <button type="button" className="mt-5 text-[13px] font-semibold text-gold hover:text-white" onClick={() => switchMode(mode === "signin" ? "signup" : "signin")}>
+            {mode === "signin" ? "New to Monetra? Create an account" : "Already have an account? Sign in"}
+          </button>
+        )}
       </div>
     </div>,
     document.body,
@@ -145,7 +175,7 @@ export default function LoginPage({ onSignedIn }) {
   return (
     <div className="landing-page">
       <header className="landing-nav">
-        <a href="#top" aria-label="FinPilot AI home"><BrandMark /></a>
+        <a href="#top" aria-label="Monetra home"><BrandMark /></a>
         <nav className="hidden items-center gap-8 md:flex" aria-label="Primary navigation">
           <a href="#platform">Platform</a><a href="#how-it-works">How it works</a><a href="#principles">Our approach</a>
         </nav>
@@ -158,7 +188,7 @@ export default function LoginPage({ onSignedIn }) {
           <div className="hero-copy">
             <div className="eyebrow"><span className="eyebrow-dot" /> Your wealth, navigated by AI</div>
             <h1>Make your money<br /><span>make more sense.</span></h1>
-            <p className="hero-lede">FinPilot brings your financial picture into focus — so you can make confident decisions today and build the life you actually want tomorrow.</p>
+            <p className="hero-lede">Monetra brings your financial picture into focus — so you can make confident decisions today and build the life you actually want tomorrow.</p>
             <div className="hero-actions"><button className="button-gold" onClick={() => openAuth("signup")}>Start your financial map <Icon name="arrow_forward" size={18} /></button><a className="watch-link" href="#platform"><span className="play-dot"><Icon name="play_arrow" size={15} fill /></span> See the platform</a></div>
             <div className="hero-proof"><div className="avatar-stack"><span>AS</span><span>RN</span><span>MK</span></div><div><strong>Built for real life.</strong><small>Clarity for the decisions that matter.</small></div></div>
           </div>
@@ -176,21 +206,21 @@ export default function LoginPage({ onSignedIn }) {
 
         <Reveal as="section" className="trust-strip"><span>BUILT FOR THE FULL PICTURE</span><div><Icon name="shield" size={18} /> Private by design</div><div><Icon name="visibility" size={18} /> Clear by default</div><div><Icon name="lock" size={18} /> Yours, always</div></Reveal>
 
-        <Reveal as="section" className="intro-section" id="how-it-works"><div className="section-kicker">A better relationship with money</div><div className="intro-grid"><h2>Less guesswork.<br /><em>More good decisions.</em></h2><p>Most financial tools show you what happened. FinPilot helps you understand what to do next — with a clear view of your health, your goals, and the trade-offs in between.</p></div></Reveal>
+        <Reveal as="section" className="intro-section" id="how-it-works"><div className="section-kicker">A better relationship with money</div><div className="intro-grid"><h2>Less guesswork.<br /><em>More good decisions.</em></h2><p>Most financial tools show you what happened. Monetra helps you understand what to do next — with a clear view of your health, your goals, and the trade-offs in between.</p></div></Reveal>
 
         <section className="feature-section" id="principles"><Reveal as="div" className="feature-grid reveal-cards">{featureCards.map((card) => <article className={`feature-card ${card.tone}`} key={card.title}><div className="feature-icon"><Icon name={card.icon} size={22} fill /></div><div className="feature-eyebrow">{card.eyebrow}</div><h3>{card.title}</h3><p>{card.body}</p><span className="feature-line" /></article>)}</Reveal></section>
 
         <section className="platform-section" id="platform">
-          <Reveal className="platform-heading"><div><div className="section-kicker">The FinPilot cockpit</div><h2>Every signal.<br /><em>One calm place.</em></h2></div><p>Designed to feel less like a spreadsheet and more like a trusted second opinion.</p></Reveal>
-          <Reveal className="platform-showcase"><div className="showcase-copy"><span className="showcase-number">01</span><h3>Know where you stand.</h3><p>Your health score turns the complicated into something you can act on. See your strengths, your blind spots, and your next best move.</p><button className="text-link" onClick={() => openAuth("signup")}>Explore your dashboard <Icon name="arrow_forward" size={16} /></button></div><div className="showcase-image"><img src={dashboardShot} alt="FinPilot AI onboarding profile dashboard" /></div></Reveal>
-          <Reveal className="platform-collage"><div className="collage-image advisory"><img src={advisoryShot} alt="FinPilot AI advisory report" /></div><div className="collage-copy"><span className="showcase-number">02</span><h3>Turn insight into momentum.</h3><p>Personalized advisory, goal simulations, and an AI chat that remembers the context — all designed around your version of a good life.</p><div className="collage-pills"><span>AI advisory</span><span>Goal simulator</span><span>Personal chat</span></div></div><div className="collage-image goals"><img src={goalsShot} alt="FinPilot AI goals simulator" /></div></Reveal>
+          <Reveal className="platform-heading"><div><div className="section-kicker">The Monetra cockpit</div><h2>Every signal.<br /><em>One calm place.</em></h2></div><p>Designed to feel less like a spreadsheet and more like a trusted second opinion.</p></Reveal>
+          <Reveal className="platform-showcase"><div className="showcase-copy"><span className="showcase-number">01</span><h3>Know where you stand.</h3><p>Your health score turns the complicated into something you can act on. See your strengths, your blind spots, and your next best move.</p><button className="text-link" onClick={() => openAuth("signup")}>Explore your dashboard <Icon name="arrow_forward" size={16} /></button></div><div className="showcase-image"><img src={dashboardShot} alt="Monetra onboarding profile dashboard" /></div></Reveal>
+          <Reveal className="platform-collage"><div className="collage-image advisory"><img src={advisoryShot} alt="Monetra advisory report" /></div><div className="collage-copy"><span className="showcase-number">02</span><h3>Turn insight into momentum.</h3><p>Personalized advisory, goal simulations, and an AI chat that remembers the context — all designed around your version of a good life.</p><div className="collage-pills"><span>AI advisory</span><span>Goal simulator</span><span>Personal chat</span></div></div><div className="collage-image goals"><img src={goalsShot} alt="Monetra goals simulator" /></div></Reveal>
         </section>
 
         <section className="principles-section"><Reveal className="principles-card"><div><div className="section-kicker">Our point of view</div><h2>Financial confidence<br /><em>is a feeling.</em></h2></div><div className="principles-list"><div><span>01</span><p><b>Context over noise.</b> Your money is personal. Advice should be too.</p></div><div><span>02</span><p><b>Progress over perfection.</b> The best plan is the one you can keep.</p></div><div><span>03</span><p><b>Clarity over complexity.</b> Good guidance should leave you feeling lighter.</p></div></div></Reveal></section>
 
         <Reveal as="section" className="final-cta"><div className="cta-glow" /><div className="section-kicker">Your next chapter starts here</div><h2>Ready to feel more<br /><em>in control?</em></h2><p>Set up your financial map in minutes. Your future self will thank you.</p><button className="button-gold" onClick={() => openAuth("signup")}>Create your free account <Icon name="arrow_forward" size={18} /></button></Reveal>
       </main>
-      <footer className="landing-footer"><BrandMark /><span>© 2026 FinPilot AI. Built for a clearer tomorrow.</span><a href="#top">Back to top <Icon name="north" size={14} /></a></footer>
+      <footer className="landing-footer"><BrandMark /><span>© 2026 Monetra. Built for a clearer tomorrow.</span><a href="#top">Back to top <Icon name="north" size={14} /></a></footer>
       {showAuth && <AuthPanel mode={mode} setMode={setMode} onSignedIn={onSignedIn} onClose={() => setShowAuth(false)} />}
     </div>
   );

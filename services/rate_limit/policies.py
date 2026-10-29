@@ -73,6 +73,7 @@ class PolicyRegistry:
         self.auth_account = _token_rule("auth_account", 5, 600, "email")
         self.auth_refresh = _token_rule("auth_refresh", 4, 60, "session")
         self.auth_resend = _token_rule("auth_resend", 3, 600, "email")
+        self.auth_login_code = _token_rule("auth_login_code", 5, 60, "email")
         self.auth_account_action = _token_rule("auth_account_action", 5, 60, "account")
         self.auth_challenge = LimitRule(
             "auth_challenge",
@@ -115,6 +116,8 @@ class PolicyRegistry:
             "/api/auth/delete-account",
         ) and method == "POST":
             return [self.auth_account_action]
+        if path.rstrip("/") == "/api/auth/login-code" and method == "POST":
+            return []
         if path.rstrip("/") == "/api/auth/confirm-email" and method == "POST":
             return []
         if path.rstrip("/") == "/api/auth/me" and method == "GET":
@@ -162,6 +165,7 @@ class PolicyRegistry:
             "auth_account",
             "auth_refresh",
             "auth_resend",
+            "auth_login_code",
             "auth_challenge",
             "auth_account_action",
         )

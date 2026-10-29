@@ -21,7 +21,7 @@ CHAT_HISTORY_CHAR_BUDGET = 8000
 # SYSTEM PERSONA
 # -------------------------------
 SYSTEM_PROMPT = """
-You are FinPilot AI, a professional personal financial advisor.
+You are Monetra, a professional personal financial advisor.
 
 You specialize in:
 - Budgeting

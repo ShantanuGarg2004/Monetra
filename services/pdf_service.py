@@ -157,7 +157,7 @@ def generate_pdf_report(
 
         story.append(
             Paragraph(
-                "Prepared by FinPilot AI Advisory Engine",
+                "Prepared by Monetra",
                 subtitle
             )
         )

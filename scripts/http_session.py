@@ -22,18 +22,27 @@ def data_headers(session_cookie: str) -> dict:
     }
 
 
-def login_cookie(base_url: str, email: str, password: str) -> str:
-    body = json.dumps({"email": email, "password": password}).encode()
+def _post(url: str, payload: dict):
     req = urllib.request.Request(
-        base_url.rstrip("/") + "/api/auth/login",
-        data=body,
+        url,
+        data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         headers = resp.headers.get_all("Set-Cookie") or []
-        resp.read()
+        body = json.loads(resp.read().decode("utf-8") or "{}")
+    return body, headers
+
+
+def login_cookie(base_url: str, email: str, password: str, code: str | None = None) -> str:
+    root = base_url.rstrip("/")
+    body, headers = _post(root + "/api/auth/login", {"email": email, "password": password})
+    if body.get("otp_required"):
+        if not code:
+            raise ValueError("login requires the code sent to " + str(body.get("email") or email))
+        _body, headers = _post(root + "/api/auth/login-code", {"email": email, "code": code})
     for header in headers:
-        if "finpilot_access=" in header:
+        if "finpilot_access=" in header and "finpilot_access=;" not in header:
             return cookie_pair(header)
     raise ValueError("login did not set finpilot_access")

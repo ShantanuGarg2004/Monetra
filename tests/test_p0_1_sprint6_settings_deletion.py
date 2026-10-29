@@ -56,7 +56,8 @@ def _signup(client, email, password=PASSWORD):
 
 
 def _login(client, email, password=PASSWORD):
-    res = _post(client, "/api/auth/login", {"email": email, "password": password})
+    from tests.auth_client import complete_login
+    res = complete_login(client, email, password)
     assert res.status_code == 200, res.get_data(as_text=True)
     return res
 

@@ -472,8 +472,8 @@ def mark_email_verified(account_id: int) -> None:
         conn.commit()
 
 
-def replace_challenge(account_id: int, purpose: str, secret_hash: str, target_email: str | None = None) -> dict:
-    """Consume any open row for this account and purpose, then insert a 30-minute challenge."""
+def replace_challenge(account_id: int, purpose: str, secret_hash: str, target_email: str | None = None, minutes: int = 30) -> dict:
+    """Consume any open row for this account and purpose, then insert a challenge."""
     with connection() as conn:
         conn.execute(
             """
@@ -493,7 +493,7 @@ def replace_challenge(account_id: int, purpose: str, secret_hash: str, target_em
                 :purpose,
                 :secret_hash,
                 :target_email,
-                CURRENT_TIMESTAMP + INTERVAL '30 minutes'
+                CURRENT_TIMESTAMP + (:minutes * INTERVAL '1 minute')
             )
             RETURNING id, expires_at
             """,
@@ -502,6 +502,7 @@ def replace_challenge(account_id: int, purpose: str, secret_hash: str, target_em
                 "purpose": purpose,
                 "secret_hash": secret_hash,
                 "target_email": target_email,
+                "minutes": int(minutes),
             },
         ).fetchone()
         conn.commit()
@@ -583,6 +584,45 @@ def get_challenge(challenge_id: int, purpose: str):
 
 def get_verify_challenge(challenge_id: int):
     return get_challenge(int(challenge_id), "verify_email")
+
+
+def get_open_challenge(account_id: int, purpose: str):
+    """The newest live challenge for this account and purpose, or None."""
+    with connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, account_id, purpose, secret_hash, target_email, expires_at, consumed_at, attempt_count
+            FROM auth_challenges
+            WHERE account_id = :account_id
+              AND purpose = :purpose
+              AND consumed_at IS NULL
+              AND expires_at > CURRENT_TIMESTAMP
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            {"account_id": int(account_id), "purpose": purpose},
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def consume_login_code(challenge_id: int, secret_hash: str) -> bool:
+    """Consume a live login_code row when the hash matches."""
+    with connection() as conn:
+        row = conn.execute(
+            """
+            UPDATE auth_challenges
+            SET consumed_at = CURRENT_TIMESTAMP
+            WHERE id = :challenge_id
+              AND purpose = 'login_code'
+              AND secret_hash = :secret_hash
+              AND consumed_at IS NULL
+              AND expires_at > CURRENT_TIMESTAMP
+            RETURNING id
+            """,
+            {"challenge_id": int(challenge_id), "secret_hash": secret_hash},
+        ).fetchone()
+        conn.commit()
+    return row is not None
 
 
 def complete_password_reset(challenge_id: int, secret_hash: str, password: str) -> bool:

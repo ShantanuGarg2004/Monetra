@@ -10,6 +10,7 @@ from services.rate_limit.gateway import RateLimitGateway
 from services.rate_limit.memory_store import MemoryRateLimitStore
 from services.rate_limit.policies import PolicyRegistry
 from services.rate_limit import gateway as gw_mod
+from database.repository import mark_email_verified
 from services.rate_limit.store import token_retry_after
 
 
@@ -121,8 +122,10 @@ def test_failed_password_bucket_allows_a_later_correct_password(tmp_path, monkey
     assert blocked.status_code == 429
     assert blocked.get_json()["route_class"] == "auth_account"
     assert blocked.get_json()["retry_after"] == 600
+    mark_email_verified(created.get_json()["account_id"])
     signed = _post(client, "/api/auth/login", {"email": "locked@example.com", "password": "correct-horse"})
     assert signed.status_code == 200
+    assert signed.get_json()["otp_required"] is True
 
 
 def test_fifth_refresh_is_limited_and_logout_is_not(tmp_path, monkeypatch):

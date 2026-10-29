@@ -5,6 +5,7 @@ import config
 import database.db as db_mod
 from app import create_app
 from database.repository import get_account_by_email, get_challenge, mark_email_verified
+from tests.auth_client import complete_login
 from services.rate_limit import gateway as gw_mod
 import services.email_change as email_change
 import services.verification as verification
@@ -32,7 +33,7 @@ def _post(client, path, body):
 def _capture(monkeypatch):
     sent = []
 
-    def fake_send(to, subject, text):
+    def fake_send(to, subject, text, html=None):
         sent.append({"to": to, "subject": subject, "text": text})
         if subject == email_change.NOTICE_SUBJECT:
             return False if fake_send.fail_notice else True
@@ -114,10 +115,7 @@ def test_old_address_stays_until_confirm_and_both_sessions_end(tmp_path, monkeyp
     first = app.test_client()
     second = app.test_client()
     _signup(first, "owner@example.com")
-    assert _post(second, "/api/auth/login", {
-        "email": "owner@example.com",
-        "password": "correct-horse",
-    }).status_code == 200
+    assert complete_login(second, "owner@example.com", "correct-horse").status_code == 200
     assert first.get("/api/auth/me").status_code == 200
     assert second.get("/api/auth/me").status_code == 200
 

@@ -8,6 +8,7 @@ import secrets
 from config import Config
 from database.repository import complete_password_reset, replace_challenge
 from services.emailer import send_email
+from services.mail_content import compose
 from services.verification import INVALID_LINK, VerificationStoreError, inspect_challenge
 
 logger = logging.getLogger(__name__)
@@ -38,14 +39,21 @@ def send_password_reset(account: dict) -> bool:
             return False
     raw = secrets.token_urlsafe(32)
     row = replace_challenge(int(account["id"]), PURPOSE, _hash(raw))
-    text = (
-        "Reset your FinPilot password.\n\n"
-        "Open this link and choose a new password. Opening the link does not use it up.\n"
-        f"{_link(row['id'], raw)}\n\n"
-        "The link expires in 30 minutes.\n"
-        "You will need to sign in again on each device.\n"
+    recipient = (account.get("email") or "").strip().lower()
+    link = _link(row["id"], raw)
+    text, html = compose(
+        title="Reset your password",
+        to_address=recipient,
+        paragraphs=[
+            "A password reset was requested for this Monetra account.",
+            "Open the link and choose a new password. Opening the link does not use it up.",
+            "You will need to sign in again on each device.",
+        ],
+        action_label="Choose a new password",
+        action_url=link,
+        expiry="This link expires in 30 minutes.",
     )
-    ok = send_email(account["email"], "Reset your FinPilot password", text)
+    ok = send_email(recipient, "Reset your Monetra password", text, html)
     if not ok:
         logger.warning("Password reset email was not sent for account %s", account["id"])
     return ok

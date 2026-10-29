@@ -170,6 +170,7 @@ def create_app():
             return
         if request.method == "POST" and request.path.rstrip("/") in (
             "/api/auth/login",
+            "/api/auth/login-code",
             "/api/auth/signup",
             "/api/auth/logout",
             "/api/auth/refresh",
@@ -215,7 +216,7 @@ def create_app():
         if g.actor.kind in ("user", "api_key") and _requires_verified_email(request.method, request.path):
             if not _actor_email_verified(g.actor):
                 return jsonify({
-                    "error": "Verify your email before using this part of FinPilot.",
+                    "error": "Verify your email before using this part of Monetra.",
                     "code": "email_unverified",
                 }), 403
 

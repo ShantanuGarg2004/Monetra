@@ -1,6 +1,6 @@
 <div align="center">
 
-# FinPilot AI
+# Monetra
 
 ### AI-Powered Personal Financial Advisor
 
@@ -43,7 +43,7 @@ goal-feasibility simulations for Indian retail investors.
 
 ## Overview
 
-FinPilot AI ingests a user's financial profile — age, income, expenses, savings, risk
+Monetra ingests a user's financial profile — age, income, expenses, savings, risk
 appetite, goals, and an optional EMI figure — and layers three independent engines on top of it:
 
 1. **Deterministic financial-health scorer** — a 7-pillar, rule-based engine that produces a

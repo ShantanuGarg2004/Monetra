@@ -12,6 +12,8 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 os.environ.setdefault("EMAIL_API_KEY", "")
@@ -59,3 +61,13 @@ def sign_in(client, email="person@example.com", password="correct-horse"):
     from database.repository import mark_email_verified
     mark_email_verified(res.get_json()["account_id"])
     return {"Content-Type": "application/json"}
+
+
+@pytest.fixture(autouse=True)
+def _predictable_login_code(monkeypatch):
+    """Sign-in codes are fixed in tests. The mail call does not touch Resend."""
+    from tests.auth_client import LOGIN_CODE
+    import services.login_code as login_code
+
+    monkeypatch.setattr(login_code, "generate_login_code", lambda: LOGIN_CODE)
+    monkeypatch.setattr(login_code, "send_email", lambda *args, **kwargs: True)
