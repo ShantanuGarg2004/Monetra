@@ -3,8 +3,7 @@ import Button from "../components/Button";
 import { TextField } from "../components/Field";
 import { apiFetch } from "../config/api";
 
-export function ResetPasswordPage({ onDone }) {
-  const params = new URLSearchParams(window.location.search);
+export function ResetPasswordPage({ onDone, proof }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
@@ -23,8 +22,8 @@ export function ResetPasswordPage({ onDone }) {
       const body = await apiFetch("/auth/reset-password", {
         method: "POST",
         body: JSON.stringify({
-          id: params.get("id"),
-          token: params.get("token"),
+          id: proof.id,
+          token: proof.token,
           password,
           confirm_password: confirm,
         }),

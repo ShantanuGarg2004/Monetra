@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveRoute } from "./routes.js";
+import { isMailLink, locationForSamePath, resolveRoute } from "./routes.js";
 
 test("the email-change link stays on its page", () => {
   const decision = resolveRoute({ signedIn: false, path: "/confirm-email", profileId: null });
@@ -18,6 +18,22 @@ test("the verification link stays on its page", () => {
   const decision = resolveRoute({ signedIn: false, path: "/verify-email", profileId: null });
   assert.equal(decision.screen, "verify-email");
   assert.equal(decision.redirect, null);
+  assert.equal(isMailLink("/verify-email"), true);
+  assert.equal(isMailLink("/"), false);
+});
+
+test("staying on the verification link keeps the token", () => {
+  assert.equal(
+    locationForSamePath("/verify-email", "/verify-email", "?id=4&token=abc", ""),
+    "/verify-email?id=4&token=abc",
+  );
+});
+
+test("leaving the verification link drops the token", () => {
+  assert.equal(
+    locationForSamePath("/", "/verify-email", "?id=4&token=abc", ""),
+    "/",
+  );
 });
 
 test("signed out /chat renders the landing page and remembers the path", () => {

@@ -12,7 +12,7 @@ import {
   startSession,
   writeStoredUserId,
 } from "./lib/historySession";
-import { normalizePath, pathForPage, resolveRoute } from "./lib/routes";
+import { isMailLink, locationForSamePath, normalizePath, pathForPage, resolveRoute } from "./lib/routes";
 import LoginPage from "./pages/LoginPage";
 import { VerifyEmailPage, VerifyPending } from "./pages/VerifyEmail";
 import { ResetPasswordPage } from "./pages/ResetPassword";
@@ -37,14 +37,15 @@ function useAppPath() {
   const go = useCallback((page, { replace = false } = {}) => {
     const next = pathForPage(page);
     const current = normalizePath(window.location.pathname);
+    const nextUrl = locationForSamePath(next, current, window.location.search, window.location.hash);
     const state = currentHistoryState();
-    const sameUrl = next === current;
+    const sameUrl = nextUrl === `${current}${window.location.search}${window.location.hash}`;
     if (sameUrl && currentEntryMatches() && !replace) {
       setPath(next);
       return;
     }
-    if (replace || sameUrl) window.history.replaceState(state, "", next);
-    else window.history.pushState(state, "", next);
+    if (replace || next === current) window.history.replaceState(state, "", nextUrl);
+    else window.history.pushState(state, "", nextUrl);
     setPath(next);
   }, []);
 
@@ -175,6 +176,10 @@ export default function App() {
   const [account, setAccount] = useState(null);
   const [ready, setReady] = useState(false);
   const [path, go] = useAppPath();
+  const [mailProof] = useState(() => {
+    const search = new URLSearchParams(window.location.search);
+    return { id: search.get("id") || "", token: search.get("token") || "" };
+  });
   const accountRef = useRef(null);
   accountRef.current = account;
 
@@ -188,7 +193,7 @@ export default function App() {
   const dropSession = useCallback(() => {
     endSession();
     clearPrivateCaches();
-    go("/", { replace: true });
+    if (!isMailLink(window.location.pathname)) go("/", { replace: true });
     setAccount(null);
   }, [go]);
 
@@ -259,25 +264,30 @@ export default function App() {
       {!ready ? null : (
         <div key={account ? account.account_id : "landing"} className="view-enter">
           {onConfirmEmail ? (
-            <ConfirmEmailPage onDone={() => {
+            <ConfirmEmailPage proof={mailProof} onDone={() => {
               endSession();
               clearPrivateCaches();
               setAccount(null);
               go("/", { replace: true });
             }} />
           ) : onResetLink ? (
-            <ResetPasswordPage onDone={() => {
+            <ResetPasswordPage proof={mailProof} onDone={() => {
               endSession();
               clearPrivateCaches();
               setAccount(null);
               go("/", { replace: true });
             }} />
           ) : onVerifyLink ? (
-            <VerifyEmailPage onConfirmed={async () => {
-              const me = await apiFetch("/auth/me");
-              setAccount(me);
-              go("/profile", { replace: true });
-            }} />
+            <VerifyEmailPage
+              proof={mailProof}
+              onSignIn={() => go("/", { replace: true })}
+              onConfirmed={async () => {
+                const me = await apiFetch("/auth/me");
+                setAccount(me);
+                if (me.email_verified === false) throw new Error("Email confirmed. Sign in to continue.");
+                go("/profile", { replace: true });
+              }}
+            />
           ) : account && account.email_verified === false ? (
             <VerifyPending account={account} onSignOut={signOut} />
           ) : account ? (

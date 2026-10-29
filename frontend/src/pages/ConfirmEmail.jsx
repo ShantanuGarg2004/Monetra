@@ -2,8 +2,7 @@ import { useState } from "react";
 import Button from "../components/Button";
 import { apiFetch } from "../config/api";
 
-export function ConfirmEmailPage({ onDone }) {
-  const params = new URLSearchParams(window.location.search);
+export function ConfirmEmailPage({ onDone, proof }) {
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -14,7 +13,7 @@ export function ConfirmEmailPage({ onDone }) {
     try {
       const body = await apiFetch("/auth/confirm-email", {
         method: "POST",
-        body: JSON.stringify({ id: params.get("id"), token: params.get("token") }),
+        body: JSON.stringify({ id: proof.id, token: proof.token }),
       });
       setDone(true);
       setMessage(body.message || "Email updated. Sign in again with the new address.");

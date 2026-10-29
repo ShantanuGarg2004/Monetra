@@ -19,6 +19,21 @@ const SCREENS = {
 };
 
 const NEEDS_PROFILE = new Set(["/dashboard", "/advisory", "/chat", "/goals"]);
+const MAIL_LINKS = new Set(["/verify-email", "/reset-password", "/confirm-email"]);
+
+export function isMailLink(path) {
+  return MAIL_LINKS.has(normalizePath(path));
+}
+
+/** Keep ?id=&token= when a refresh rewrites the same mail page. A different page drops it. */
+export function locationForSamePath(nextPath, currentPath, search = "", hash = "") {
+  const next = normalizePath(nextPath);
+  const current = normalizePath(currentPath);
+  if (next !== current) return next;
+  const query = typeof search === "string" ? search : "";
+  const fragment = typeof hash === "string" ? hash : "";
+  return `${next}${query}${fragment}`;
+}
 
 export function normalizePath(pathname) {
   const raw = typeof pathname === "string" ? pathname : "/";

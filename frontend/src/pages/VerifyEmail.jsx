@@ -33,10 +33,10 @@ export function VerifyPending({ account, onSignOut }) {
   );
 }
 
-export function VerifyEmailPage({ onConfirmed }) {
-  const params = new URLSearchParams(window.location.search);
+export function VerifyEmailPage({ proof, onConfirmed, onSignIn }) {
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function confirm() {
@@ -45,12 +45,13 @@ export function VerifyEmailPage({ onConfirmed }) {
     try {
       await apiFetch("/auth/verify-email", {
         method: "POST",
-        body: JSON.stringify({ id: params.get("id"), token: params.get("token") }),
+        body: JSON.stringify({ id: proof.id, token: proof.token }),
       });
       setDone(true);
       try {
         await onConfirmed();
       } catch {
+        setNeedsSignIn(true);
         setMessage("Email confirmed. Sign in to continue.");
       }
     } catch (err) {
@@ -66,7 +67,9 @@ export function VerifyEmailPage({ onConfirmed }) {
         <h1 className="font-display text-3xl font-bold text-white">Confirm your email.</h1>
         <p className="mt-3 text-sm leading-6 text-muted">Press the button to finish. Opening this page does not use the link.</p>
         {message && <p className="mt-4 text-sm leading-6 text-gold">{message}</p>}
-        {!done && (
+        {needsSignIn ? (
+          <Button type="button" className="mt-6" onClick={onSignIn}>Sign in</Button>
+        ) : !done && (
           <Button type="button" loading={loading} className="mt-6" onClick={confirm}>Confirm email</Button>
         )}
       </main>
