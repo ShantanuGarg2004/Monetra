@@ -1,114 +1,37 @@
 # User experience
 
-**Status:** Design only. Q5 has not started.  
-**Date:** 2026-09-25  
+**Status:** Current as of 2026-10-29.  
+**Product name:** Monetra.  
 **Companion:** `docs/architecture/AUTH_ARCHITECTURE.md`
 
-This document is the login and session flow a person sees. Financial profiles stay what they are today: a profile is not an account.
+An account is the email a person signs in with. A profile is one financial snapshot. Signing in does not create a profile.
 
----
+## Signed out
 
-## 1. Two objects
+The public site opens on the landing page. Sign in and Get started open the same panel.
 
-| Object | What the person calls it | What it is |
-|---|---|---|
-| Account | The email they sign in with | One person. Holds the password. |
-| Profile | “Profile” in the sidebar | One financial snapshot (age, income, goals). An account can have several. |
+Create account asks for email, a password of at least 12 characters, and a matching confirmation. Success sets a session and shows one screen: a confirmation link was sent to that address. That screen is only for a new account.
 
-Signing in does not create a profile. Creating a profile does not create an account.
+Sign in on an account that is already confirmed asks for the password, then a 6-digit code sent to that same address. The code screen names the address. The app opens after the code is accepted.
 
-The active profile id can stay in `sessionStorage` for the browser tab. The account session is the cookie. Closing the tab can forget which profile was open. It does not sign the person out until the cookie expires or they sign out.
+Sign in on an account that is not confirmed does not open the app. It sends the signup link again and says to confirm that link.
 
----
+A wrong email or password is one sentence: **Email or password is incorrect.**
 
-## 2. Signed out
+## Confirmation link
 
-The app opens on a sign-in screen. Dashboard, Advisory, Chat, Goals, and Profile are not reachable. The sidebar is not shown.
+The mail button opens `/verify-email?id=&token=`. The page stays there. It does not send the person to the landing page, and it does not drop the token when the browser has no session.
 
-The screen has:
+Pressing **Confirm email** is what uses the link. If a session from signup is still present and the address is now confirmed, the app opens Profile. If there is no session, the page says the email is confirmed and offers **Sign in**. That sign-in uses the code, not another confirmation link.
 
-- Email
-- Password
-- Primary action: **Sign in**
-- Secondary action: **Create an account**
+Password reset (`/reset-password`) and email change (`/confirm-email`) keep their query the same way. Opening those pages does not use the secret.
 
-There is no API-key field and no message about `VITE_API_KEY`.
+## Signed in
 
-Empty fields and a bad email shape are caught before the request. A wrong email or wrong password returns one line: **Email or password is incorrect.** The copy does not say which field failed.
+The shell shows the account email, Settings, and Sign out. Settings holds change password, change email, and delete account.
 
----
+Dashboard, Advisory, Chat, and Goals need a profile. Settings does not. Sign out revokes only this browser's session and returns to the landing page. The back button does not reopen another account's profile.
 
-## 3. Create an account
+## What the person is not asked to do
 
-Fields: email, password, confirm password.
-
-Rules the person can see:
-
-- Email must look like an email.
-- Password must be at least 12 characters.
-- Confirm must match.
-
-If the email is already registered, the screen says **An account with this email already exists** and links back to sign in. It does not sign them in.
-
-On success the server sets the session cookie and the app opens **Profile** with an empty list and the existing profile form. The title stays “Onboarding Profile”. A short line above the form says they are signed in and have no profiles yet.
-
----
-
-## 4. Sign in
-
-Success sets the cookie and loads `GET /api/users` for this account only.
-
-| What comes back | Where they land |
-|---|---|
-| No profiles | Profile, with the empty state and the form |
-| One or more profiles | The last profile id stored in this tab, if it is still in the list. Otherwise the profile list, not a guessed id. |
-| The stored id is not in the list | Profile list. The stale id is dropped. Dashboard is not shown for a missing profile. |
-
-Dashboard, Advisory, Chat, and Goals stay disabled until a profile is selected, which is the same rule as today (`requiresUser` in the sidebar).
-
----
-
-## 5. Signed in
-
-The shell gains two items that are always available:
-
-- The signed-in email, shown in the sidebar, not as a profile name
-- **Sign out**
-
-Profile create, select, and delete behave as they do now, scoped to this account. Delete still clears the report, chat, and goal caches for that profile id.
-
-Switching profiles does not sign the person out. Signing out clears the cookie, clears those caches, clears the stored profile id, and returns to the sign-in screen.
-
----
-
-## 6. Session expired
-
-A request that fails because the cookie is missing, expired, or has a stale `session_version` is HTTP 401 with `code: session_expired`.
-
-The app then:
-
-1. Drops the stored profile id and the report, chat, and goal caches.
-2. Replaces the current page with the sign-in screen.
-3. Shows one line: **Your session ended. Sign in again.**
-
-That screen is not the Dashboard empty state. It must not say “No report yet”, “No profile”, or “check your API key”.
-
-A 404 `not_found` on a report still means this profile has no report. A 401 never means that.
-
-Wrong API key on a local script stays `code: unauthorized`. The browser does not use that code for a person.
-
----
-
-## 7. Bootstrap account
-
-People who already have profiles in this database sign in as the bootstrap account, with the email and password chosen at migration. They then see the profiles, reports, and chats they already had.
-
-Someone who creates a new account on the same server sees an empty profile list. They do not see the bootstrap profiles.
-
----
-
-## 8. Copy that must change
-
-Today a 401 is shown as “Unauthorized — check your API key configuration.” After Q5 the browser treats 401 as session expiry (section 6). Local scripts and Swagger are outside this UI.
-
-Network errors stay as they are: the API could not be reached. A failed login is not a network error.
+They are not asked to paste an API key. They are not asked to confirm the signup link on every later sign-in. Goal plans stay in the browser. There is no profile-edit form.

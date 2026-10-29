@@ -61,15 +61,7 @@ These are **repo gaps**. Documented here so deploy work does not start against a
 
 ### 3.1 Cross-origin session cookie
 
-Today [`services/sessions.py`](../../services/sessions.py) sets `samesite="Lax"`. That is correct for same-site local Vite → Flask (proxy). It is **wrong** when the UI is `https://*.vercel.app` and the API is `https://*.up.railway.app`.
-
-Before go-live:
-
-1. In production (`FLASK_ENV` outside `development` / `dev` / `local`), set the session cookie to `SameSite=None` and `Secure=True`.
-2. Apply the same attributes when clearing the cookie on logout.
-3. Keep Flask-CORS configured for the Vercel origin with credentials allowed (already the production expectation via `CORS_ORIGINS`).
-
-Until that lands, signup/login from Vercel will look like “session never sticks.”
+[`services/sessions.py`](../../services/sessions.py) sets `SameSite=Lax` without `Secure` when `FLASK_ENV` is `development`, `dev`, or `local`. That matches the Vite proxy. Outside those values the access and refresh cookies are `SameSite=None` and `Secure`, including when they are cleared. `CORS_ORIGINS` must list the exact public site origin, and the browser must send credentials.
 
 ### 3.2 CORS and frontend API base
 

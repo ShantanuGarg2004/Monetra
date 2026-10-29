@@ -69,57 +69,9 @@ Create or confirm:
 
 ---
 
-### Step A2 — Code fix: production session cookie (required)
+### Step A2 — Production session cookies (already in the code)
 
-Vercel (`*.vercel.app`) and Railway (`*.up.railway.app`) are **different sites**. With today’s code, production sets `Secure` but keeps `SameSite=Lax`, so the browser will not send `finpilot_session` on cross-site API calls after login. Fix this **before** you build the image that Railway will run.
-
-Open [`services/sessions.py`](../../services/sessions.py) and replace the cookie helpers so production uses `SameSite=None` and `Secure=True`. Logout must clear the cookie with the **same** flags.
-
-**Replace** the current `attach_cookie` / `clear_cookie` (and add `_cookie_flags`) with:
-
-```python
-def _cookie_flags():
-    local = Config.FLASK_ENV in ("development", "dev", "local")
-    if local:
-        return {"secure": False, "samesite": "Lax"}
-    return {"secure": True, "samesite": "None"}
-
-
-def attach_cookie(response, account_id: int, session_version: int):
-    flags = _cookie_flags()
-    response.set_cookie(
-        COOKIE_NAME,
-        issue_token(account_id, session_version),
-        max_age=MAX_AGE_SECONDS,
-        httponly=True,
-        secure=flags["secure"],
-        samesite=flags["samesite"],
-        path="/",
-    )
-    return response
-
-
-def clear_cookie(response):
-    flags = _cookie_flags()
-    response.delete_cookie(
-        COOKIE_NAME,
-        path="/",
-        secure=flags["secure"],
-        samesite=flags["samesite"],
-    )
-    return response
-```
-
-Leave `issue_token`, `read_token`, and the imports as they are.
-
-Then commit (example):
-
-```powershell
-git add services/sessions.py
-git commit -m "fix: allow cross-origin session cookies for Vercel and Railway"
-```
-
-Local Vite (proxied `/api`) still uses `Lax` when `FLASK_ENV` is `development` / `dev` / `local`.
+Vercel and Railway are different sites. [`services/sessions.py`](../../services/sessions.py) `_cookie_flags` already sets `SameSite=None` and `Secure` when `FLASK_ENV` is outside `development`, `dev`, and `local`. Local Vite still uses `Lax` without `Secure`. Logout clears `finpilot_access` and `finpilot_refresh` with those same flags. Do not put the old `finpilot_session` cookie back.
 
 CORS already has `supports_credentials=True` in [`app.py`](../../app.py). You will set the **allowed origin list** only after Vercel exists (Phase D). Do not invent a Vercel URL here.
 
@@ -469,7 +421,7 @@ Not required for the first deploy. Secrets when you automate: `DOCKERHUB_USERNAM
 
 ```text
 Phase A
-[ ] A2 Cookie SameSite=None + Secure in production (sessions.py) committed
+[x] A2 Production cookies are SameSite=None + Secure outside local Flask (sessions.py)
 [ ] A3 Dockerfile + .dockerignore committed
 [ ] A4 docker build succeeds
 [ ] A5 Image pushed (latest + sha); IMAGE= written down

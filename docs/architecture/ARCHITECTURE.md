@@ -1,10 +1,11 @@
-# FinPilot AI — as-built architecture
+# Monetra — as-built architecture
 
-**Date:** 2026-09-28  
-**Audience:** Someone who has not read the review. This file describes the process that is running after the review follow-ups.  
-**Historical notes:** `docs/planning/PLATFORM_QUALITY_WAVES.md` explains why older code looks the way it does. It is not the current system.
+**Date:** 2026-10-29  
+**Audience:** Someone who has not read the review. This file describes the process that is running.  
+**Module diagrams:** `docs/architecture_modules/README.md`  
+**Historical notes:** `docs/planning/` and `docs/execution/testing_reports/` explain why older code looks the way it does. They are not the current system. The product name in those files is often FinPilot.
 
-A browser signs in. The API stores the session in an HttpOnly cookie. Report and chat calls to Groq run in a separate worker process. Application data is PostgreSQL database `finpilot`. Rate-limit counters are PostgreSQL database `finpilot_ratelimit`. PDFs are files on disk.
+A browser confirms a new address once, then signs in with a one-time code. The API stores that sign-in as an access cookie and a refresh cookie. Report and chat calls to Groq run in a separate worker process. Application data is PostgreSQL database `finpilot`. Rate-limit counters are PostgreSQL database `finpilot_ratelimit`. PDFs are files on disk. Mail is sent through Resend.
 
 Capacity, copied from `docs/execution/testing_reports/REMEDIATION_6_LOAD_TEST_REPORT.md`: This host does not meet the written pass lines for 100 concurrent health checks or 100 concurrent profile lists. Report enqueue does. Eighty lists while 10 report jobs were running, and the chat gate after chat was queued, are both still over 300 ms. It is not fair to say that about 100 people can load the app and list their profiles at once, or that a report no longer freezes those reads.
 
@@ -29,7 +30,7 @@ npm run dev
 
 The Vite server is `http://localhost:5173` and proxies `/api` to `http://127.0.0.1:5000`, so the session cookie stays on one origin. Sign in from the landing page.
 
-Required environment names (values live in `.env`, never in this file): `GROQ_API_KEY`, `API_SECRET_KEY`, `SESSION_SECRET`. `SESSION_SECRET` signs `finpilot_session`. It must be at least 32 characters and different from `API_SECRET_KEY`. Changing it signs every browser out.
+Required environment names (values live in `.env`, never in this file): `GROQ_API_KEY`, `API_SECRET_KEY`, `SESSION_SECRET`. `SESSION_SECRET` signs `finpilot_access`. It must be at least 32 characters and different from `API_SECRET_KEY`. Changing it signs every browser out. Mail also needs `EMAIL_API_KEY`, `EMAIL_FROM` on a verified domain, and `APP_PUBLIC_URL` with no path. Local `FLASK_ENV` of `development`, `dev`, or `local` sets the cookies to `SameSite=Lax` without `Secure`. Any other value sets `SameSite=None` and `Secure`, which is what the public site needs.
 
 `APP_DATABASE_URL` points at database `finpilot`. `RATELIMIT_DATABASE_URL` points at `finpilot_ratelimit`. `RATELIMIT_STORAGE_BACKEND=sql` turns on the gateway. `FLASK_ENV` of `development`, `dev`, or `local` turns Swagger on at `http://127.0.0.1:5000/apidocs/`.
 
@@ -57,10 +58,10 @@ sequenceDiagram
     participant R as Blueprint
 
     C->>A: Cookie, or X-API-Key, or neither
-    alt OPTIONS, /, health, login, signup, logout
+    alt OPTIONS, /, health, or an anonymous auth post
         A->>G: anonymous, health is exempt
-    else session cookie present
-        A->>A: Verify SESSION_SECRET and session_version
+    else finpilot_access present
+        A->>A: Verify signature, live session row, and session_version
         alt cookie valid
             A->>G: Actor user
         else cookie bad
@@ -83,7 +84,7 @@ sequenceDiagram
 
 Order inside `resolve_actor`:
 
-1. A presented `finpilot_session` cookie is resolved first. A bad cookie does not fall through to a key.
+1. A presented `finpilot_access` cookie is resolved first. The signature, the live `sessions` row, and `accounts.session_version` must all match. A bad cookie does not fall through to a key. The browser refreshes it once from `finpilot_refresh` on `POST /api/auth/refresh`.
 2. Else `X-API-Key` (or the Swagger Basic password) is matched to a non-revoked row in `api_credentials`. A new key is one indexed read on `key_sha256`, then `hmac.compare_digest`. A live row whose digest is still null is checked with its password hash, and startup logs how many of those rows remain so they can be reissued. The actor is `api_key`. `credential` is that account id. `scopes` is `data`, `llm`, or both.
 3. Else, on local `/apidocs/` and `/apispec.json` only, a value equal to `API_SECRET_KEY` is `docs`.
 4. Else the request is rejected.
@@ -98,7 +99,7 @@ A presented key that matches nothing is counted for that client address before t
 
 The gateway in `services/rate_limit` is the live limiter when `RATELIMIT_STORAGE_BACKEND` is `sql` or `memory`. Flask-Limiter stays imported and its decorators stay on routes, and `limiter.enabled` is false on that path so the two do not both count. Unknown `/api` paths return `429` `rate_policy_missing`. Health is exempt.
 
-Logout (`routes/auth_routes.py`) increments `accounts.session_version` and clears the cookie. Older cookies fail on the next request.
+Logout (`routes/auth_routes.py`) revokes only the `sessions` row for the cookie that called it and clears `finpilot_access` and `finpilot_refresh`. It does not change `accounts.session_version`. A password change, a confirmed email change, a password reset, and account deletion revoke every session and bump `session_version`. Until `email_verified_at` is set, profile, report, chat, goal, and PDF routes return `403` `email_unverified`.
 
 ---
 
@@ -147,8 +148,8 @@ Ownership is `users.account_id` in `database/repository.py`. Reports and chats s
 
 ## 5. What is intentionally absent
 
-- No Redis. Sessions are a signed cookie. Rate-limit state is PostgreSQL.
-- No OAuth and no JWT access-token service. Login is email and password hashed in this app.
+- No Redis. The access cookie is signed. The refresh secret is a hash in PostgreSQL. Rate-limit state is PostgreSQL.
+- No OAuth and no separate auth vendor. Login is email and a password hashed in this app, then a one-time code emailed by Resend. The access cookie is an itsdangerous token, not a third-party JWT service.
 - No Alembic. A new database takes its column types from `CREATE TABLE IF NOT EXISTS` in `database/models.py`. A change to a column that already exists is a one-time SQL script, such as `database/sql/issue8_column_types.sql`, and the same types in that `CREATE TABLE` text.
 - Chat is queued. The issue 6 measurement showed a synchronous chat call holding the web process, so `POST /api/chat` now returns `202` and the worker calls Groq.
 - The production browser does not send `VITE_API_KEY`. That variable is for local scripts only, and the env key is not a data actor.
@@ -163,9 +164,12 @@ Profile checks on the request path live in Marshmallow schemas. Prompts are buil
 | --- | --- |
 | `app.py` | Factory, auth, gateway, health, blueprints |
 | `services/actor.py` | Cookie, then scoped credential, then docs password |
-| `services/sessions.py` | `finpilot_session` signed with `SESSION_SECRET` |
+| `services/sessions.py` | `finpilot_access` (15 minutes) and `finpilot_refresh` (7 days) |
+| `services/emailer.py` | One Resend HTTP call |
+| `services/verification.py` | Signup confirmation link |
+| `services/login_code.py` | Sign-in code |
 | `services/rate_limit/` | Quotas |
-| `routes/auth_routes.py` | Signup, login, logout, `/api/auth/me` |
+| `routes/auth_routes.py` | Signup, confirmation, sign-in code, logout, refresh, password, email, deletion |
 | `routes/report_routes.py` | Enqueue report, read report, download PDF |
 | `routes/chat_routes.py` | Enqueue chat, read or clear history |
 | `services/jobs/worker.py` | Claim and run Groq |

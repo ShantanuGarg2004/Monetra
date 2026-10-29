@@ -1,4 +1,4 @@
-# Set up FinPilot on a new device
+# Set up Monetra on a new device
 
 Use this when the machine has never run the app. It covers the local stack: PostgreSQL in Docker, the Flask API, the job worker, the React app, and Waitress in place of the local debugger.
 
@@ -19,7 +19,7 @@ Thread counts and timeouts are in `CAPACITY_RUNBOOK.md` in this folder.
 ## 1. Clone and enter the repo
 
 ```bash
-git clone https://github.com/ShantanuGarg2004/FinPilot.git
+git clone https://github.com/ShantanuGarg04/FinPilot.git
 cd FinPilot
 ```
 
@@ -50,7 +50,7 @@ On Linux, install Gunicorn instead of Waitress when this host will serve traffic
 
 ## 3. Environment file
 
-Copy `.env.example` to `.env` in the repo root. Fill in the three required values. Do not commit `.env`.
+Copy `.env.example` to `.env` in the repo root. Fill in the three required values. Mail also needs `EMAIL_API_KEY`, `EMAIL_FROM=Monetra <noreply@monetra.site>`, and `APP_PUBLIC_URL=http://localhost:5173` when you want confirmation and sign-in messages. Do not commit `.env`.
 
 ```env
 GROQ_API_KEY=your-groq-api-key

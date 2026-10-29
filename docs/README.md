@@ -2,9 +2,13 @@
 
 Files under `docs/` are grouped by what they are for.
 
+## architecture_modules
+
+One explanation, high-level diagram, low-level diagram, and sequence for each module of the running system. Start at `architecture_modules/README.md`.
+
 ## architecture
 
-How the running system works.
+How the running system works. These files describe current behavior.
 
 - `ARCHITECTURE.md` — request path, worker, and databases
 - `NEW_DEVICE_SETUP.md` — clone, Docker, `.env`, Waitress, the worker, and the frontend on a new machine
@@ -18,7 +22,7 @@ How the running system works.
 
 ## planning
 
-What was going to be built, and in what order.
+Records of what was going to be built, and in what order. They keep the product name and the behavior from the day they were written.
 
 - `PLATFORM_QUALITY_WAVES.md` — Q1 through Q6
 - `IMPLEMENTATION_PLAN_RATE_LIMITER_AND_BOTTLENECKS.md` — Waves 0 through 3
@@ -32,7 +36,7 @@ What was going to be built, and in what order.
 
 ## analysis
 
-Reviews and measurements. These record what was found.
+Reviews and measurements. These record what was found on the day they were written.
 
 - `PLATFORM_ARCHITECTURE_BOTTLENECKS.md`
 - `ARCHITECTURE_AND_ISSUE_6_ANALYSIS.md`
@@ -40,7 +44,7 @@ Reviews and measurements. These record what was found.
 
 ## execution
 
-What was built, and the reports from running it.
+What was built, and the reports from running it. Each report is a record of that run.
 
 - `GROQ_PATH_B_IMPLEMENTATION_REPORT.md` — what the Groq move changed
 - `testing_reports/` — one report for each quality wave, remediation issue, the database move, and each review follow-up
@@ -55,7 +59,7 @@ How the system is meant to be hosted.
 
 ## product-audit
 
-What the running product is, judged from the repository. These are reviews, not setup steps.
+Reviews of the product as it stood when each file was written. They are not setup steps, and they are not the current behavior. The current name is Monetra.
 
 - `01-product-360-audit.md` — product identity, journey, and maturity
 - `02-feature-service-audit.md` — feature map
@@ -71,4 +75,4 @@ What the running product is, judged from the repository. These are reviews, not 
 - `09-monetization-packaging.md` — units the product could charge for
 - `product-inventory.json` — structured inventory
 
-`architecture/ARCHITECTURE.md` is the current system. `architecture/NEW_DEVICE_SETUP.md` is how to run it on a new machine. `planning/` is the order the work was planned. `deployment/VERCEL_RAILWAY_DEPLOY_GUIDE.md` is the locked how-to for Vercel + Railway + Docker Hub.
+`architecture_modules/README.md` and `architecture/ARCHITECTURE.md` are the current system. `architecture/NEW_DEVICE_SETUP.md` is how to run it on a new machine. `planning/`, `analysis/`, `execution/`, and `product-audit/` are records. `deployment/VERCEL_RAILWAY_DEPLOY_GUIDE.md` is the locked how-to for Vercel + Railway + Docker Hub.

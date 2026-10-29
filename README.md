@@ -76,8 +76,7 @@ when `FLASK_ENV` is `development`, `dev`, or `local`. Groq runs in `python -m se
 - **Persistent storage** — PostgreSQL database `finpilot` for accounts, profiles, reports,
   chat, jobs, and scoped API keys. PDF files live under `data/pdfs`. The limiter uses a
   separate database, `finpilot_ratelimit`.
-- **Sign-in** — email and a Werkzeug password hash. The browser session is an HttpOnly cookie,
-  `finpilot_session`, signed with `SESSION_SECRET`. A signed-in person only sees their own profiles.
+- **Sign-in** — email and a Werkzeug password hash. A new account confirms that address once, from a link. Later sign-ins email a 6-digit code. The browser then holds `finpilot_access` (15 minutes) and `finpilot_refresh` (7 days). A signed-in person only sees their own profiles.
 - **Scoped API key** — `scripts/issue_api_credential.py` prints a key once. The database stores
   a hash. Scopes are `data` and `llm`. The key is that account, not every account.
   `API_SECRET_KEY` opens Swagger and does not list profiles. The React app does not send a key.
@@ -127,7 +126,7 @@ flowchart LR
         PDF["data/pdfs"]
     end
 
-    UI -- "HTTP + finpilot_session" --> MW
+    UI -- "HTTP + finpilot_access" --> MW
     MW --> RL
     RL --> UB & RB & CB & GB
     RL --> RLDB
@@ -156,6 +155,8 @@ flowchart LR
 
 > The request path, the worker, and the two databases are written up in
 > [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md).
+> Each module has its own high-level diagram, low-level diagram, and sequence in
+> [`docs/architecture_modules/`](docs/architecture_modules/README.md).
 
 ---
 
@@ -214,14 +215,20 @@ FinPilot/
 │   ├── pdf_files.py           # PDF files under data/pdfs
 │   └── sqlite_import.py       # Optional copy from finance.db (SQLITE_IMPORT, default off)
 ├── routes/
-│   ├── auth_routes.py         # Sign-up, sign-in, sign-out, current account
+│   ├── auth_routes.py         # Sign-up, confirmation link, sign-in code, password, email, deletion
 │   ├── user_routes.py         # Profile CRUD (/api/profile, /api/users)
 │   ├── report_routes.py       # Queue a report, fetch it, download the PDF
 │   ├── chat_routes.py         # Queue a chat turn, read or clear history
 │   └── goal_routes.py         # Goal feasibility simulation endpoint
 ├── services/
 │   ├── actor.py               # Cookie, then scoped credential, then docs password
-│   ├── sessions.py            # finpilot_session
+│   ├── sessions.py            # finpilot_access and finpilot_refresh
+│   ├── emailer.py             # Resend
+│   ├── verification.py        # Signup confirmation link
+│   ├── login_code.py          # Sign-in code
+│   ├── password_reset.py
+│   ├── email_change.py
+│   ├── mail_content.py        # Text and HTML for those messages
 │   ├── jobs/worker.py         # python -m services.jobs.worker
 │   ├── health_service.py      # 7-pillar financial-health scoring engine
 │   ├── goal_service.py        # SIP PMT math, scenario simulation, feasibility scoring
@@ -236,6 +243,7 @@ FinPilot/
 └── docs/
     ├── README.md              # Which folder holds which documents
     ├── architecture/          # How the running system works
+    ├── architecture_modules/  # One HLD, LLD, and sequence per module
     ├── planning/              # Plans and the order work was meant to ship
     ├── analysis/              # Reviews and the issue 6 measurement write-up
     └── execution/             # What was built, and testing_reports/
@@ -255,7 +263,7 @@ FinPilot/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/ShantanuGarg2004/FinPilot.git
+git clone https://github.com/ShantanuGarg04/FinPilot.git
 cd FinPilot
 ```
 
@@ -288,7 +296,7 @@ GROQ_REPORT_MODEL=openai/gpt-oss-120b
 GROQ_CHAT_MODEL=openai/gpt-oss-20b
 ```
 
-> `GROQ_API_KEY`, `API_SECRET_KEY`, and `SESSION_SECRET` are **required**. `SESSION_SECRET` signs the browser cookie and must differ from `API_SECRET_KEY`. `FLASK_ENV=development` turns Swagger on.
+> `GROQ_API_KEY`, `API_SECRET_KEY`, and `SESSION_SECRET` are **required**. `SESSION_SECRET` signs `finpilot_access` and must differ from `API_SECRET_KEY`. `FLASK_ENV=development` turns Swagger on. Confirmation and sign-in mail also need `EMAIL_API_KEY`, `EMAIL_FROM`, and `APP_PUBLIC_URL` from `.env.example`.
 > `APP_DATABASE_URL` is the application database. `RATELIMIT_DATABASE_URL` is only the limiter.
 > See `.env.example`. Do not commit `.env`.
 
@@ -348,10 +356,13 @@ Health, sign-up, sign-in, and sign-out are public. `/api/auth/me` needs the sess
 |---|---|---|---|
 | `/api/health` | GET | public | Liveness. Body is `status`, `database_ok`, and `ratelimit_store_ok`. `503` when the app database or the rate-limit store is down. |
 | `/apidocs/` | GET | local env + Basic password `API_SECRET_KEY` | Swagger UI |
-| `/api/auth/signup` | POST | public | Create an account and set the session cookie |
-| `/api/auth/login` | POST | public | Sign in and set the session cookie |
-| `/api/auth/logout` | POST | public | Bump `session_version` and clear the cookie |
-| `/api/auth/me` | GET | session cookie | Current account |
+| `/api/auth/signup` | POST | public | Create an account, email a confirmation link, and set the session cookies. The address is not confirmed yet. |
+| `/api/auth/verify-email` | POST | public | Confirm the signup link. Opening the page does not use the link. |
+| `/api/auth/login` | POST | public | Check the password. A confirmed account is emailed a code and is not signed in yet. An unconfirmed account is sent the signup link again. |
+| `/api/auth/login-code` | POST | public | Check the sign-in code and set the session cookies. |
+| `/api/auth/logout` | POST | public | Revoke the session that called it and clear both cookies. `session_version` stays. |
+| `/api/auth/refresh` | POST | public | Rotate the refresh secret and set a new access cookie. |
+| `/api/auth/me` | GET | access cookie | Current account |
 | `/api/users` | GET | cookie or scoped key (`data`) | List that account’s profiles |
 | `/api/profile` | POST | cookie or scoped key (`data`) | Create a profile |
 | `/api/profile/<user_id>` | DELETE | cookie or scoped key (`data`) | Delete a profile, its report, and its chat |
@@ -367,7 +378,7 @@ Quotas are per route class in config (for example chat 15 per minute, report gen
 <details>
 <summary>Example: create a profile</summary>
 
-Sign in first and send the `finpilot_session` cookie, or send a scoped key from `scripts/issue_api_credential.py` as `X-API-Key`. `API_SECRET_KEY` is not accepted on this route.
+Sign in first and send the `finpilot_access` cookie, or send a scoped key from `scripts/issue_api_credential.py` as `X-API-Key`. `API_SECRET_KEY` is not accepted on this route. The address must already be confirmed.
 
 ```bash
 curl -X POST http://127.0.0.1:5000/api/profile \
@@ -433,7 +444,9 @@ Database `finpilot` on PostgreSQL:
 
 | Table | Purpose | Key constraints |
 |---|---|---|
-| `accounts` | Email and password hash | Unique email. `session_version` bumps on logout. |
+| `accounts` | Email and password hash | Unique email. `email_verified_at` is set when the signup link is confirmed. `session_version` bumps when the password changes, the email changes, or the account is deleted. Logout does not bump it. |
+| `sessions` | One browser sign-in | Refresh secret hash. Cascade delete from `accounts`. |
+| `auth_challenges` | Signup link, sign-in code, password reset, email change | Purpose check. The secret is stored as SHA-256. |
 | `users` | Financial profiles owned by an account | `account_id` references `accounts` |
 | `reports` | Advisory text and the PDF file name | `user_id` unique, cascade delete |
 | `chat_history` | Per-profile chat messages | Cascade delete, `role ∈ {user, ai}` |

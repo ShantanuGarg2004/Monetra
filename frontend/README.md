@@ -1,8 +1,8 @@
-# FinPilot frontend
+# Monetra frontend
 
-React 19 and Vite client for FinPilot. Sign-in uses an HttpOnly session cookie. The browser does not send `X-API-Key`.
+React 19 and Vite client. The browser does not send `X-API-Key`.
 
-The platform overview, API, and database notes live in the repository [README](../README.md).
+The platform overview lives in the repository [README](../README.md). Module diagrams live in [docs/architecture_modules](../docs/architecture_modules/README.md).
 
 ## Run it
 
@@ -14,46 +14,19 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. Vite proxies `/api` to `http://127.0.0.1:5000`, so the page and the API share one origin and the session cookie is sent.
+Open `http://localhost:5173`. Vite proxies `/api` to `http://127.0.0.1:5000`.
 
-`frontend/.env` only needs:
-
-```env
-VITE_API_URL=/api
-```
-
-Leave that unset and the client still defaults to `/api`. Do not put `API_SECRET_KEY` or `VITE_API_KEY` in this folder. That key is for Swagger and local scripts. A browser that sent it would see every profile.
+Production sets `VITE_API_URL` to the Railway API prefix ending in `/api`. There is no router package. `frontend/vercel.json` rewrites unknown paths to `index.html` so `/verify-email`, `/reset-password`, `/confirm-email`, and `/settings` load the app.
 
 ## What the screens do
 
 | Screen | Behavior |
 |---|---|
-| Sign in / create account | `POST /api/auth/login` and `POST /api/auth/signup`. The API sets `finpilot_session`. |
-| Signed out | `GET /api/auth/me` fails and the login page stays up. |
-| Profiles, report, chat, goals | Calls go through `src/config/api.js` with `credentials: "include"`. |
-| Sign out | `POST /api/auth/logout`. The active profile id, the sign-in stamp, and the in-memory report, chat, and goal caches are cleared. Back does not reopen the previous account. |
-| Session ended | A 401 `session_expired` returns the person to sign-in. The message is “Your session ended. Sign in again.” |
+| Create account | `POST /api/auth/signup`. A confirmation link is emailed to that address. The app stays on the confirm screen until the link is used. |
+| Sign in | `POST /api/auth/login`, then `POST /api/auth/login-code` with the 6-digit code. Cookies are `finpilot_access` and `finpilot_refresh`. |
+| Mail links | The id and token are captured on first load. A missing session does not send the page back to the landing page. |
+| Profiles, report, chat, goals | `src/config/api.js` with `credentials: "include"`. A dead access cookie refreshes once. |
+| Settings | Change password, change email, delete account. |
+| Sign out | `POST /api/auth/logout` revokes this session only. |
 
-An account with no profiles yet sees “You are signed in and have no profiles yet.” Profiles copied from the old SQLite file belong to the bootstrap account, not to a brand-new signup.
-
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Dev server on port 5173 with the `/api` proxy |
-| `npm run build` | Production bundle |
-| `npm run preview` | Serves the production bundle |
-| `npm run lint` | ESLint |
-| `npm test` | Route guard, report-poll decisions, advisory HTML escaping, and history sign-in stamps. No Flask and no browser. |
-
-`npm test` runs `node --test` on `src/lib/routes.test.js`, `src/lib/reportPoll.test.js`, `src/lib/markdownText.test.js`, and `src/lib/historySession.test.js`. Those files import plain functions. They do not start Vite.
-
-An optional browser check, not part of `npm test` and not required in CI, needs the dev server already running:
-
-```bash
-node scripts/landing_smoke.mjs
-```
-
-It opens Sign in and checks the dialog sits in the viewport, then opens `/dashboard` while signed out and checks the landing page is still showing. It does not compare screenshots.
-
-The proxy is only in the Vite dev server. A built bundle still calls `VITE_API_URL`. For a deployed site that must be the API’s public `/api` prefix, and the API `CORS_ORIGINS` list must include that site.
+Do not put `API_SECRET_KEY` in this folder.

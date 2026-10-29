@@ -1,6 +1,6 @@
-# FinPilot Frontend Error Handling
+# Frontend error handling
 
-**Status:** Specification + implementation checklist  
+**Status:** Copy catalog. The strings the app shows are in `frontend/src/lib/apiErrors.js`. The product name is Monetra.  
 **Companion docs:** `RATE_LIMITER_ARCHITECTURE.md`, `docs/analysis/PLATFORM_ARCHITECTURE_BOTTLENECKS.md`  
 **UI surface:** Toasts + inline empty/error states (no silent failures)
 
@@ -172,7 +172,7 @@ Beyond toasts, hooks expose:
 
 | Code | Default message |
 |---|---|
-| `network_error` | Can’t reach the FinPilot API. Confirm the backend is running on port 5000. |
+| `network_error` | Can't reach the Monetra API. Confirm the backend is running on port 5000. |
 | `unauthorized` | Unauthorized — check your API key configuration. |
 | `validation_error` | (server details) or “Please check the highlighted fields.” |
 | `not_found` (report) | No saved report for this profile yet. |

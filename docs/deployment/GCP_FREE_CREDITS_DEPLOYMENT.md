@@ -63,7 +63,7 @@ Intentionally unused for this plan: GKE, Compute Engine VMs as the primary runti
 
 Before any public Vercel → Cloud Run login works:
 
-1. Production session cookie must be `SameSite=None; Secure` (today [`services/sessions.py`](../../services/sessions.py) uses `Lax`).
+1. Production session cookies are already `SameSite=None; Secure` when `FLASK_ENV` is outside local development ([`services/sessions.py`](../../services/sessions.py)). Keep `FLASK_ENV=production`.
 2. `CORS_ORIGINS` must list the exact Vercel origin(s).
 3. `FLASK_ENV=production` and non-default database passwords.
 4. Multi-stage image exists and is pushed (see primary strategy §4, or push the same Dockerfile to Artifact Registry).

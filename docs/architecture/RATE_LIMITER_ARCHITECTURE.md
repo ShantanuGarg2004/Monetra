@@ -1,6 +1,6 @@
-# FinPilot Rate Limiter Architecture
+# Rate limiter architecture
 
-**Status:** Design specification (implementation pending)  
+**Status:** Earlier design. The live buckets, including sign-in codes, are in `docs/architecture_modules/05-rate-limiting.md`.  
 **Target capacity:** 100 concurrent users  
 **Storage (near-term):** PostgreSQL **or** MySQL (not Redis)  
 **Future swap:** Redis-compatible adapter without changing route decorations  

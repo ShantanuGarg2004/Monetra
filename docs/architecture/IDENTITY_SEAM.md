@@ -1,29 +1,19 @@
 # Identity seam
 
-**Status:** Q5 is implemented. A browser session is an account. `X-API-Key` is still the deployment credential for scripts and Swagger.
-
-Design: `docs/architecture/AUTH_ARCHITECTURE.md` and `docs/architecture/USER_EXPERIENCE.md`.
-
-## Actor
+**Status:** Current as of 2026-10-29.  
+**Design:** `docs/architecture/AUTH_ARCHITECTURE.md`
 
 `services/actor.py` resolves one `Actor` before the rate-limit gateway runs.
 
 | Kind | Meaning |
 |---|---|
-| `anonymous` | Health, the home page, and CORS preflight. No credential. |
-| `api_key` | `X-API-Key` or the Swagger Basic password matches `API_SECRET_KEY`. |
-| `user` | Reserved for Q5. Not issued by this wave. |
+| `anonymous` | Health, `/`, CORS preflight, and the anonymous auth posts listed in `app.py`. |
+| `user` | `finpilot_access` matches a live session and the account's `session_version`. `credential` is the account id. |
+| `api_key` | `X-API-Key` matches a live `api_credentials` row. `credential` is that account id. `scopes` is `data`, `llm`, or both. |
+| `docs` | Local Swagger only, when the presented secret equals `API_SECRET_KEY`. Not a data actor. |
 
-`Actor.rate_limit_subject()` is the gateway bucket identity. For `api_key` it is a hash of the deployment key. For a future `user` actor it will be the account id. Server-to-server calls keep the key hash.
+`Actor.rate_limit_subject()` for `user` and `api_key` is `acct:<account_id>`. A bad access cookie is `session_expired` and does not fall through to a key. An unmatched key is `unauthorized` and is counted on the `credential_failure` bucket before the 401.
 
-## Threat until Q5
+A scoped key sees the same profiles as that account's browser. There is no superuser scope. `GET /api/users` is the caller's profiles only.
 
-A valid key can still read and change every profile, report, chat, download, and goal. `GET /api/users` still lists every profile. Per-profile rate ceilings are abuse control on top of the shared key. They are not row-level security and they do not prove the caller owns that `user_id`.
-
-Do not describe Q4 as authentication of a person.
-
-## CORS and Swagger
-
-`CORS_ORIGINS` lists the browser origins allowed to call `/api`. When unset, the list is `http://localhost:5173` and `http://127.0.0.1:5173`. An empty list is rejected when `FLASK_ENV` is not `development`, `dev`, or `local`.
-
-Swagger (`/apidocs/`, `/apispec.json`) is registered only in those local environments, and still requires the API key. Other environments return 404 for those paths.
+`CORS_ORIGINS` is the list of browser origins allowed to call `/api` with credentials. The public site is `https://monetra.site`. Swagger is registered only when `FLASK_ENV` is `development`, `dev`, or `local`.
