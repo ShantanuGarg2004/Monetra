@@ -354,7 +354,11 @@ When credits are exhausted, the stack stops until you move to the GCP path, anot
 
 ---
 
-## 13. Related docs
+## 13. Account deletion and backups
+
+Deleting an account removes that account, its sessions, challenges, API credentials, profiles, reports, chat, jobs, and the PDF files for those profiles from the running application. Operator backups are outside this deletion. A Postgres dump or a disk snapshot can still contain those rows and files until that backup ages out on the operator’s own schedule. No statutory retention period is coded.
+
+## 14. Related docs
 
 | Doc | Role |
 |---|---|

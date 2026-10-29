@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test src/lib/routes.test.js src/lib/reportPoll.test.js src/lib/markdownText.test.js src/lib/historySession.test.js",
+    "test": "node --test src/lib/routes.test.js src/lib/reportPoll.test.js src/lib/markdownText.test.js src/lib/historySession.test.js src/lib/sessionRefresh.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

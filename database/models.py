@@ -1,5 +1,6 @@
 import logging
 import re
+from pathlib import Path
 
 from database.db import get_connection, schema_name
 from database.pdf_files import export_legacy_blobs
@@ -155,6 +156,8 @@ def _create_tables(conn):
         ON api_credentials (key_sha256)
         WHERE revoked_at IS NULL
     """)
+    _apply_sql_script(conn, "sessions.sql")
+    _apply_sql_script(conn, "auth_challenges.sql")
     pending = conn.execute(
         """
         SELECT COUNT(*) AS n FROM api_credentials
@@ -177,6 +180,45 @@ def _create_tables(conn):
     export_legacy_blobs(conn)
     _drop_pdf_blob_if_clear(conn)
     conn.commit()
+
+
+def _sql_statements(body: str) -> list[str]:
+    """Split on semicolons that are outside dollar-quoted blocks."""
+    statements = []
+    buf: list[str] = []
+    in_dollar = False
+    i = 0
+    while i < len(body):
+        if body.startswith("$$", i):
+            in_dollar = not in_dollar
+            buf.append("$$")
+            i += 2
+            continue
+        if body[i] == ";" and not in_dollar:
+            sql = "".join(buf).strip()
+            if sql:
+                statements.append(sql)
+            buf = []
+            i += 1
+            continue
+        buf.append(body[i])
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        statements.append(tail)
+    return statements
+
+
+def _apply_sql_script(conn, filename: str) -> None:
+    """Run an idempotent script from database/sql. One statement per execute."""
+    path = Path(__file__).resolve().parent / "sql" / filename
+    kept = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip().startswith("--"):
+            continue
+        kept.append(line)
+    for statement in _sql_statements("\n".join(kept)):
+        conn.execute(statement)
 
 
 def _drop_pdf_blob_if_clear(conn):

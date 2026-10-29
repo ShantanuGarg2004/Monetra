@@ -1,6 +1,6 @@
 import Icon from "../Icon";
 
-export default function TopBar({ title, activeGoal, onNewProfile, onMenu }) {
+export default function TopBar({ title, activeGoal, onNewProfile, onMenu, onSettings }) {
   return (
     <header className="fixed top-0 right-0 left-0 lg:left-56 z-30 min-h-[var(--app-bar)] pt-[env(safe-area-inset-top)] bg-background/85 backdrop-blur-md border-b border-outline flex justify-between items-center px-3 sm:px-gutter gap-2">
       <div className="flex items-center gap-1 min-w-0">
@@ -33,7 +33,7 @@ export default function TopBar({ title, activeGoal, onNewProfile, onMenu }) {
           <button className="hidden sm:inline-flex p-1.5 text-on-surface-variant hover:text-primary transition-colors">
             <Icon name="notifications" size={18} />
           </button>
-          <button className="hidden sm:inline-flex p-1.5 text-on-surface-variant hover:text-primary transition-colors">
+          <button type="button" onClick={onSettings} aria-label="Settings" className="inline-flex p-1.5 text-on-surface-variant hover:text-primary transition-colors">
             <Icon name="settings" size={18} />
           </button>
           <div className="h-8 w-8 ml-1 rounded-full border border-outline bg-surface-container flex items-center justify-center text-primary shrink-0">

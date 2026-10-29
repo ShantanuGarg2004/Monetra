@@ -64,7 +64,8 @@ def test_get_report_missing_returns_404_not_throttle(api_client):
 
 def test_unauthorized_returns_structured_401(api_client):
     client, _ = api_client
-    client.delete_cookie("finpilot_session")
+    client.delete_cookie("finpilot_access")
+    client.delete_cookie("finpilot_refresh", path="/api/auth/refresh")
     res = client.get("/api/users", headers={"X-API-Key": "wrong"})
     assert res.status_code == 401
     body = res.get_json()

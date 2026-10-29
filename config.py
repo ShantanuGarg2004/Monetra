@@ -55,8 +55,12 @@ class Config:
 
     # Secret key scripts and Swagger send as X-API-Key. Not the session signer.
     API_SECRET_KEY = os.getenv("API_SECRET_KEY")
-    # Signs finpilot_session. Must differ from API_SECRET_KEY.
+    # Signs finpilot_access. Must differ from API_SECRET_KEY.
     SESSION_SECRET = os.getenv("SESSION_SECRET")
+    # Transactional mail. Unset skips the network in every environment.
+    EMAIL_API_KEY = os.getenv("EMAIL_API_KEY")
+    EMAIL_FROM = os.getenv("EMAIL_FROM")
+    APP_PUBLIC_URL = os.getenv("APP_PUBLIC_URL", "http://localhost:5173")
 
     # Rate limiting (Wave 0 Flask-Limiter + Wave 1 SQL store prep)
     RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")

@@ -7,6 +7,7 @@ import config
 import database.db as db_mod
 from app import create_app
 from database.models import create_tables
+from database.repository import mark_email_verified
 from services.rate_limit import gateway as gw_mod
 
 
@@ -21,7 +22,7 @@ def _app(tmp_path, monkeypatch, name="q5.db"):
 
 
 def _signup(client, email, password="correct-horse"):
-    return client.post(
+    res = client.post(
         "/api/auth/signup",
         data=json.dumps({
             "email": email,
@@ -30,6 +31,9 @@ def _signup(client, email, password="correct-horse"):
         }),
         headers={"Content-Type": "application/json"},
     )
+    if res.status_code == 201:
+        mark_email_verified(res.get_json()["account_id"])
+    return res
 
 
 def _profile(goals="house"):
@@ -47,7 +51,7 @@ def test_signup_sets_session_and_hides_other_accounts(tmp_path, monkeypatch):
     client = _app(tmp_path, monkeypatch)
     first = _signup(client, "a@example.com")
     assert first.status_code == 201
-    assert "finpilot_session" in first.headers.get("Set-Cookie", "")
+    assert "finpilot_access" in first.headers.get("Set-Cookie", "")
     created = client.post(
         "/api/profile",
         data=json.dumps(_profile()),
@@ -79,7 +83,7 @@ def test_wrong_password_does_not_look_like_a_missing_report(tmp_path, monkeypatc
 
 def test_expired_cookie_is_session_expired(tmp_path, monkeypatch):
     client = _app(tmp_path, monkeypatch, "cookie.db")
-    client.set_cookie("finpilot_session", "not-a-real-token", domain="localhost")
+    client.set_cookie("finpilot_access", "not-a-real-token", domain="localhost")
     res = client.get("/api/auth/me")
     assert res.status_code == 401
     assert res.get_json()["code"] == "session_expired"

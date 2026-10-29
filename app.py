@@ -43,6 +43,40 @@ def _is_data_route(path: str) -> bool:
     return any(path == prefix or path.startswith(prefix + "/") for prefix in _DATA_PREFIXES)
 
 
+def _requires_verified_email(method: str, path: str) -> bool:
+    """Profile create, report, chat, goal, and PDF download stay closed until the email is verified."""
+    path = (path or "").rstrip("/")
+    method = (method or "GET").upper()
+    if method == "POST" and path == "/api/profile":
+        return True
+    if method == "GET" and path.startswith("/api/profile/"):
+        return True
+    if method == "POST" and path == "/api/generate-report":
+        return True
+    if method == "GET" and path.startswith("/api/report/"):
+        return True
+    if method == "GET" and path.startswith("/api/download-report/"):
+        return True
+    if method == "POST" and path == "/api/chat":
+        return True
+    if path.startswith("/api/chat/"):
+        return True
+    if method == "POST" and path == "/api/goal-plan":
+        return True
+    if method == "POST" and path == "/api/auth/change-email":
+        return True
+    return False
+
+
+def _actor_email_verified(actor: Actor) -> bool:
+    if not str(actor.credential).isdigit():
+        return False
+    from database.repository import get_account_by_id
+
+    account = get_account_by_id(int(actor.credential))
+    return bool(account and account.get("email_verified_at") is not None)
+
+
 def _required_scope(method: str, path: str) -> str | None:
     """data or llm for a scoped key. A browser session is not checked here."""
     path = (path or "").rstrip("/")
@@ -138,6 +172,11 @@ def create_app():
             "/api/auth/login",
             "/api/auth/signup",
             "/api/auth/logout",
+            "/api/auth/refresh",
+            "/api/auth/verify-email",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password",
+            "/api/auth/confirm-email",
         ):
             g.actor = Actor(kind="anonymous")
             return
@@ -171,6 +210,13 @@ def create_app():
                 return jsonify({
                     "error": "This API key cannot call this route.",
                     "code": "forbidden",
+                }), 403
+
+        if g.actor.kind in ("user", "api_key") and _requires_verified_email(request.method, request.path):
+            if not _actor_email_verified(g.actor):
+                return jsonify({
+                    "error": "Verify your email before using this part of FinPilot.",
+                    "code": "email_unverified",
                 }), 403
 
     @app.before_request
@@ -235,7 +281,7 @@ def create_app():
                     "It does not open profiles, reports, chat, or goals. "
                     "A scoped key is issued with scripts/issue_api_credential.py "
                     "and sent as X-API-Key. "
-                    "A browser signs in and sends the finpilot_session cookie."
+                    "A browser signs in and sends the finpilot_access cookie."
                 ),
             }
         },

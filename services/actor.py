@@ -9,9 +9,9 @@ from dataclasses import dataclass
 from flask import Request
 
 from config import Config
-from database.repository import find_active_api_credential, get_account_by_id
+from database.repository import find_active_api_credential, get_account_by_id, get_live_session
 from services.rate_limit.keys import hash_api_key
-from services.sessions import COOKIE_NAME, read_token
+from services.sessions import ACCESS_COOKIE, read_token
 
 
 @dataclass(frozen=True)
@@ -51,12 +51,21 @@ def resolve_actor(req: Request) -> Actor | None:
     """
     from flask import g
 
-    token = req.cookies.get(COOKIE_NAME, "")
+    token = req.cookies.get(ACCESS_COOKIE, "")
     if token:
         payload = read_token(token)
-        account = get_account_by_id(payload["account_id"]) if payload else None
-        version = account["session_version"] if account else None
-        if account and version == payload.get("session_version"):
+        session = None
+        account = None
+        if payload is not None:
+            session = get_live_session(int(payload["session_id"]))
+            account = get_account_by_id(int(payload["account_id"]))
+        version_ok = (
+            account is not None
+            and session is not None
+            and int(session["account_id"]) == int(account["id"])
+            and int(account["session_version"]) == int(payload.get("session_version"))
+        )
+        if version_ok:
             g.auth_error = None
             return Actor(kind="user", credential=str(account["id"]))
         g.auth_error = "session_expired"

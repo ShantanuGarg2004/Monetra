@@ -348,7 +348,11 @@ Phases 0–3 are enough for a credits-funded demo of scoring, advisory text, and
 
 ---
 
-## 10. Related docs
+## 10. Account deletion and backups
+
+Deleting an account removes that account’s rows and PDF files from the running application. Operator backups are outside this deletion. A Postgres dump or a disk snapshot can still contain those rows and files until that backup ages out on the operator’s own schedule. No statutory retention period is coded.
+
+## 11. Related docs
 
 | Doc | Role |
 |---|---|

@@ -6,6 +6,7 @@ export const PAGE_TO_PATH = {
   advisory: "/advisory",
   chat: "/chat",
   goals: "/goals",
+  settings: "/settings",
 };
 
 const SCREENS = {
@@ -14,6 +15,7 @@ const SCREENS = {
   "/advisory": "advisory",
   "/chat": "chat",
   "/goals": "goals",
+  "/settings": "settings",
 };
 
 const NEEDS_PROFILE = new Set(["/dashboard", "/advisory", "/chat", "/goals"]);
@@ -41,6 +43,18 @@ export function resolveRoute({ signedIn, path, profileId }) {
   const hasProfile = profileId != null && Number.isFinite(Number(profileId));
   const knownApp = Object.prototype.hasOwnProperty.call(SCREENS, current);
 
+  if (current === "/verify-email") {
+    return { screen: "verify-email", redirect: null, remember: null };
+  }
+
+  if (current === "/reset-password") {
+    return { screen: "reset-password", redirect: null, remember: null };
+  }
+
+  if (current === "/confirm-email") {
+    return { screen: "confirm-email", redirect: null, remember: null };
+  }
+
   if (!signedIn) {
     if (current !== "/" && !knownApp) {
       return { screen: "landing", redirect: "/", remember: null };
@@ -53,8 +67,8 @@ export function resolveRoute({ signedIn, path, profileId }) {
     return { screen: SCREENS[next], redirect: next, remember: null };
   }
 
-  if (current === "/profile") {
-    return { screen: "profile", redirect: null, remember: null };
+  if (current === "/profile" || current === "/settings") {
+    return { screen: SCREENS[current], redirect: null, remember: null };
   }
 
   if (NEEDS_PROFILE.has(current)) {

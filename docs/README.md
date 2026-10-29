@@ -27,6 +27,8 @@ What was going to be built, and in what order.
 - `ISSUE_REMEDIATION_PLAN.md` — debt, chat memory, and prompts
 - `GROQ_MIGRATION.md` — why the provider moved to Groq
 - `GROQ_PATH_B_IMPLEMENTATION.md` — the steps for that move
+- `P0_1_ACCOUNT_LIFECYCLE_SOLUTIONS.md` — account, session, and auth-limit design
+- `P0_1_ACCOUNT_LIFECYCLE_EXECUTION.md` — one sprint per implementation prompt
 
 ## analysis
 

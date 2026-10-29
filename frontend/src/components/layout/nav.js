@@ -14,4 +14,5 @@ export const PAGE_TITLES = {
   chat: "AI Advisor Chat",
   goals: "Goal Simulator",
   profile: "Onboarding Profile",
+  settings: "Settings",
 };

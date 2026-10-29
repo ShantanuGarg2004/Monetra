@@ -14,6 +14,10 @@ import {
 } from "./lib/historySession";
 import { normalizePath, pathForPage, resolveRoute } from "./lib/routes";
 import LoginPage from "./pages/LoginPage";
+import { VerifyEmailPage, VerifyPending } from "./pages/VerifyEmail";
+import { ResetPasswordPage } from "./pages/ResetPassword";
+import { SettingsPage } from "./pages/Settings";
+import { ConfirmEmailPage } from "./pages/ConfirmEmail";
 import { ToastProvider } from "./components/Toast";
 import { useToast } from "./components/toast-context";
 import AppShell from "./components/layout/AppShell";
@@ -135,6 +139,7 @@ function FinPilotApp({ account, onSignOut, path, go }) {
       hasUser={hasUser}
       activeGoal={activeGoal}
       onNewProfile={newProfile}
+      onSettings={() => go("/settings")}
       fullBleed={FULL_BLEED.has(page)}
       accountEmail={account.email}
       onSignOut={onSignOut}
@@ -158,6 +163,9 @@ function FinPilotApp({ account, onSignOut, path, go }) {
       )}
       {page === "goals" && hasUser && (
         <GoalsPage key={effectiveUserId} userId={effectiveUserId} userGoal={activeGoal} />
+      )}
+      {page === "settings" && (
+        <SettingsPage account={account} onLeft={onSignOut} />
       )}
     </AppShell>
   );
@@ -236,6 +244,9 @@ export default function App() {
     dropSession();
   }, [dropSession]);
 
+  const onVerifyLink = path === "/verify-email";
+  const onResetLink = path === "/reset-password";
+  const onConfirmEmail = path === "/confirm-email";
   const signedOut = resolveRoute({ signedIn: false, path, profileId: null });
 
   useEffect(() => {
@@ -247,7 +258,29 @@ export default function App() {
     <ToastProvider>
       {!ready ? null : (
         <div key={account ? account.account_id : "landing"} className="view-enter">
-          {account ? (
+          {onConfirmEmail ? (
+            <ConfirmEmailPage onDone={() => {
+              endSession();
+              clearPrivateCaches();
+              setAccount(null);
+              go("/", { replace: true });
+            }} />
+          ) : onResetLink ? (
+            <ResetPasswordPage onDone={() => {
+              endSession();
+              clearPrivateCaches();
+              setAccount(null);
+              go("/", { replace: true });
+            }} />
+          ) : onVerifyLink ? (
+            <VerifyEmailPage onConfirmed={async () => {
+              const me = await apiFetch("/auth/me");
+              setAccount(me);
+              go("/profile", { replace: true });
+            }} />
+          ) : account && account.email_verified === false ? (
+            <VerifyPending account={account} onSignOut={signOut} />
+          ) : account ? (
             <FinPilotApp account={account} onSignOut={signOut} path={path} go={go} />
           ) : (
             <LoginPage onSignedIn={signIn} />

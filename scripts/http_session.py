@@ -7,10 +7,10 @@ import urllib.request
 
 def cookie_pair(set_cookie_header: str) -> str:
     if not set_cookie_header:
-        raise ValueError("login did not set finpilot_session")
+        raise ValueError("login did not set finpilot_access")
     pair = set_cookie_header.split(";", 1)[0].strip()
-    if not pair.startswith("finpilot_session="):
-        raise ValueError("login did not set finpilot_session")
+    if not pair.startswith("finpilot_access="):
+        raise ValueError("login did not set finpilot_access")
     return pair
 
 
@@ -34,6 +34,6 @@ def login_cookie(base_url: str, email: str, password: str) -> str:
         headers = resp.headers.get_all("Set-Cookie") or []
         resp.read()
     for header in headers:
-        if "finpilot_session=" in header:
+        if "finpilot_access=" in header:
             return cookie_pair(header)
-    raise ValueError("login did not set finpilot_session")
+    raise ValueError("login did not set finpilot_access")

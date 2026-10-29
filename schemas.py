@@ -175,6 +175,67 @@ class LoginSchema(Schema):
         return data
 
 
+class ForgotPasswordSchema(Schema):
+    email = fields.Email(required=True, error_messages={"required": "email is required", "invalid": "email must look like an email"})
+
+    @pre_load
+    def normalize_email(self, data, **kwargs):
+        if isinstance(data.get("email"), str):
+            data["email"] = data["email"].strip().lower()
+        return data
+
+
+class ChangePasswordSchema(Schema):
+    current_password = fields.String(
+        required=True,
+        validate=validate.Length(min=1, error="password is required"),
+        error_messages={"required": "password is required"},
+    )
+    password = fields.String(
+        required=True,
+        validate=validate.Length(min=12, error="password must be at least 12 characters"),
+    )
+    confirm_password = fields.String(required=True)
+
+
+class DeleteAccountSchema(Schema):
+    email = fields.Email(required=True, error_messages={"required": "email is required", "invalid": "email must look like an email"})
+    password = fields.String(
+        required=True,
+        validate=validate.Length(min=1, error="password is required"),
+        error_messages={"required": "password is required"},
+    )
+
+    @pre_load
+    def normalize_email(self, data, **kwargs):
+        if isinstance(data.get("email"), str):
+            data["email"] = data["email"].strip().lower()
+        return data
+
+
+class ChangeEmailSchema(Schema):
+    email = fields.Email(required=True, error_messages={"required": "email is required", "invalid": "email must look like an email"})
+    password = fields.String(
+        required=True,
+        validate=validate.Length(min=1, error="password is required"),
+        error_messages={"required": "password is required"},
+    )
+
+    @pre_load
+    def normalize_email(self, data, **kwargs):
+        if isinstance(data.get("email"), str):
+            data["email"] = data["email"].strip().lower()
+        return data
+
+
+class NewPasswordSchema(Schema):
+    password = fields.String(
+        required=True,
+        validate=validate.Length(min=12, error="password must be at least 12 characters"),
+    )
+    confirm_password = fields.String(required=True)
+
+
 def passwords_match(data: dict) -> bool:
     return data.get("password") == data.get("confirm_password")
 
@@ -187,3 +248,8 @@ chat_schema            = ChatSchema()
 goal_plan_schema       = GoalPlanSchema()
 signup_schema          = SignupSchema()
 login_schema           = LoginSchema()
+forgot_password_schema = ForgotPasswordSchema()
+new_password_schema    = NewPasswordSchema()
+change_email_schema    = ChangeEmailSchema()
+change_password_schema = ChangePasswordSchema()
+delete_account_schema  = DeleteAccountSchema()

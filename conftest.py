@@ -14,6 +14,8 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+os.environ.setdefault("EMAIL_API_KEY", "")
+os.environ.setdefault("EMAIL_FROM", "")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("API_SECRET_KEY", "test-api-secret")
 os.environ.setdefault("SESSION_SECRET", "test-session-secret-not-the-api-key-32")
@@ -54,4 +56,6 @@ def sign_in(client, email="person@example.com", password="correct-horse"):
         headers={"Content-Type": "application/json"},
     )
     assert res.status_code == 201, res.get_data(as_text=True)
+    from database.repository import mark_email_verified
+    mark_email_verified(res.get_json()["account_id"])
     return {"Content-Type": "application/json"}

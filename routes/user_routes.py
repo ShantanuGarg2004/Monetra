@@ -28,6 +28,30 @@ def list_users():
     return jsonify({"users": users})
 
 
+@user_bp.route("/profile/<int:user_id>", methods=["GET"])
+def get_profile(user_id: int):
+    """
+    Read one profile this account owns.
+    ---
+    tags:
+      - User
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        type: integer
+    responses:
+      200:
+        description: Profile
+      404:
+        description: Profile not found
+    """
+    profile = get_user_by_id(user_id)
+    if not profile:
+        return jsonify({"error": "Profile not found", "code": "not_found"}), 404
+    return jsonify(profile)
+
+
 @user_bp.route("/profile", methods=["POST"])
 def create_profile():
     """

@@ -1,7 +1,9 @@
 """Flask before-request rate-limit gateway."""
 from __future__ import annotations
 
+import hashlib
 import logging
+import math
 import random
 import threading
 from typing import Any
@@ -84,7 +86,7 @@ class RateLimitGateway:
 
         last_ok: LimitDecision | None = None
         for rule in rules:
-            decision = self._apply_rule(actor, user_id, rule)
+            decision = self._apply_rule(actor, user_id, rule, req)
             if decision is None:
                 # store failure handled per fail-open/closed
                 continue
@@ -126,9 +128,37 @@ class RateLimitGateway:
         """Count one extra bucket. Used for PDF rebuild, which is not a cheap read."""
         if not Config.RATELIMIT_ENABLED:
             return None
-        return self._apply_rule(_actor_for(req), _extract_user_id(req), rule)
+        return self._apply_rule(_actor_for(req), _extract_user_id(req), rule, req)
 
-    def _apply_rule(self, actor: Actor, user_id: int | None, rule: LimitRule) -> LimitDecision | None:
+    def note_failed_password(self, email: str) -> LimitDecision | None:
+        """Spend auth_account after a wrong password. A correct password does not call this."""
+        if not Config.RATELIMIT_ENABLED:
+            return None
+        rule = self.policies.auth_account
+        normalized = (email or "").strip().lower()
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        key = f"email:{digest}:{rule.route_class}"
+        return self._take_token(rule, key)
+
+    def note_resend(self, email: str) -> LimitDecision | None:
+        """Spend auth_resend for a verification resend or a password-reset send."""
+        if not Config.RATELIMIT_ENABLED:
+            return None
+        rule = self.policies.auth_resend
+        normalized = (email or "").strip().lower()
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        key = f"email:{digest}:{rule.route_class}"
+        return self._take_token(rule, key)
+
+    def note_wrong_challenge(self, challenge_id: int) -> LimitDecision | None:
+        """Spend one no-refill token for a wrong challenge secret."""
+        if not Config.RATELIMIT_ENABLED:
+            return None
+        rule = self.policies.auth_challenge
+        key = f"challenge:{int(challenge_id)}:{rule.route_class}"
+        return self._take_token(rule, key)
+
+    def _apply_rule(self, actor: Actor, user_id: int | None, rule: LimitRule, req: Request | None = None) -> LimitDecision | None:
         if rule.per_user and user_id is None:
             # Cannot enforce per-user without id — skip this rule rather than block reads.
             return LimitDecision(
@@ -144,30 +174,14 @@ class RateLimitGateway:
             rule.route_class,
             user_id if rule.per_user else None,
         )
+        if rule.token_bucket:
+            return self._take_token(rule, self._token_key(rule, req))
+
         try:
             result = self.store.incr_and_check(key, rule.window_seconds, rule.limit)
         except Exception:
             logger.exception("rate limit store error for %s", rule.route_class)
-            if PolicyRegistry.is_expensive(rule.route_class):
-                # Fail closed for expensive LLM routes
-                return LimitDecision(
-                    allowed=False,
-                    route_class=rule.route_class,
-                    limit=rule.limit,
-                    remaining=0,
-                    retry_after=30,
-                    window_seconds=rule.window_seconds,
-                    fail_open=False,
-                )
-            # Fail open for reads
-            return LimitDecision(
-                allowed=True,
-                route_class=rule.route_class,
-                limit=rule.limit,
-                remaining=rule.limit,
-                window_seconds=rule.window_seconds,
-                fail_open=True,
-            )
+            return self._store_failure(rule)
 
         return LimitDecision(
             allowed=result.allowed,
@@ -176,6 +190,76 @@ class RateLimitGateway:
             remaining=result.remaining,
             retry_after=result.retry_after,
             window_seconds=result.window_seconds,
+        )
+
+    def _token_key(self, rule: LimitRule, req: Request | None) -> str:
+        if rule.key_scope == "ip":
+            address = ((req.remote_addr if req is not None else "") or "").strip() or "unknown"
+            return f"ip:{address}:{rule.route_class}"
+        if rule.key_scope == "session":
+            from services.sessions import REFRESH_COOKIE, refresh_session_subject
+
+            raw = req.cookies.get(REFRESH_COOKIE, "") if req is not None else ""
+            try:
+                subject = refresh_session_subject(raw)
+            except Exception:
+                logger.exception("refresh session lookup failed")
+                subject = "session:unknown"
+            return f"{subject}:{rule.route_class}"
+        if rule.key_scope == "email":
+            from database.repository import get_account_by_id
+
+            actor = getattr(g, "actor", None)
+            email = ""
+            if actor is not None and getattr(actor, "kind", "") in ("user", "api_key"):
+                if str(getattr(actor, "credential", "")).isdigit():
+                    account = get_account_by_id(int(actor.credential))
+                    email = (account or {}).get("email") or ""
+            digest = hashlib.sha256((email or "unknown").strip().lower().encode("utf-8")).hexdigest()
+            return f"email:{digest}:{rule.route_class}"
+        if rule.key_scope == "account":
+            actor = getattr(g, "actor", None)
+            account_id = "unknown"
+            if actor is not None and getattr(actor, "kind", "") in ("user", "api_key"):
+                if str(getattr(actor, "credential", "")).isdigit():
+                    account_id = str(int(actor.credential))
+            return f"acct:{account_id}:{rule.route_class}"
+        raise ValueError(f"unsupported token bucket scope: {rule.key_scope}")
+
+    def _take_token(self, rule: LimitRule, key: str) -> LimitDecision:
+        try:
+            result = self.store.take_token(key, rule.limit, rule.refill_per_second)
+        except Exception:
+            logger.exception("rate limit store error for %s", rule.route_class)
+            return self._store_failure(rule)
+        return LimitDecision(
+            allowed=result.allowed,
+            route_class=rule.route_class,
+            limit=result.capacity,
+            remaining=max(0, math.floor(result.remaining)),
+            retry_after=result.retry_after,
+            window_seconds=rule.window_seconds,
+        )
+
+    def _store_failure(self, rule: LimitRule) -> LimitDecision:
+        if PolicyRegistry.fails_closed(rule.route_class):
+            return LimitDecision(
+                allowed=False,
+                route_class=rule.route_class,
+                limit=rule.limit,
+                remaining=0,
+                retry_after=30,
+                window_seconds=rule.window_seconds,
+                fail_open=False,
+                store_error=True,
+            )
+        return LimitDecision(
+            allowed=True,
+            route_class=rule.route_class,
+            limit=rule.limit,
+            remaining=rule.limit,
+            window_seconds=rule.window_seconds,
+            fail_open=True,
         )
 
     def denial_response(self, decision: LimitDecision):

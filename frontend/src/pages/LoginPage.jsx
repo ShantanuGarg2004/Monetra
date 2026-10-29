@@ -70,17 +70,33 @@ function AuthPanel({ mode, setMode, onSignedIn, onClose }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function switchMode(next) {
+    setMode(next);
+    setError("");
+    setNotice("");
+  }
 
   async function submit(event) {
     event.preventDefault();
     setError("");
+    setNotice("");
     if (mode === "signup" && password !== confirm) {
       setError("Confirm password must match password.");
       return;
     }
     setLoading(true);
     try {
+      if (mode === "forgot") {
+        const body = await apiFetch("/auth/forgot-password", {
+          method: "POST",
+          body: JSON.stringify({ email }),
+        });
+        setNotice(body.message);
+        return;
+      }
       const path = mode === "signup" ? "/auth/signup" : "/auth/login";
       const body = mode === "signup" ? { email, password, confirm_password: confirm } : { email, password };
       onSignedIn(await apiFetch(path, { method: "POST", body: JSON.stringify(body) }));
@@ -95,16 +111,21 @@ function AuthPanel({ mode, setMode, onSignedIn, onClose }) {
     <div className="auth-backdrop" role="dialog" aria-modal="true" aria-label={mode === "signup" ? "Create your account" : "Sign in"} onClick={onClose}>
       <div className="auth-panel" onClick={(event) => event.stopPropagation()}>
         <button className="auth-close" onClick={onClose} aria-label="Close"><Icon name="close" size={20} /></button>
-        <div className="mb-7"><BrandMark /><h2 className="mt-8 font-display text-3xl font-bold text-white">{mode === "signup" ? "Build your money map." : "Welcome back."}</h2><p className="mt-2 text-sm leading-6 text-muted">{mode === "signup" ? "Your financial co-pilot is ready when you are." : "Pick up where your financial clarity left off."}</p></div>
+        <div className="mb-7"><BrandMark /><h2 className="mt-8 font-display text-3xl font-bold text-white">{mode === "signup" ? "Build your money map." : mode === "forgot" ? "Reset your password." : "Welcome back."}</h2><p className="mt-2 text-sm leading-6 text-muted">{mode === "signup" ? "Your financial co-pilot is ready when you are." : mode === "forgot" ? "Enter the email for the account." : "Pick up where your financial clarity left off."}</p></div>
         <form onSubmit={submit} className="space-y-4">
           <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
-          <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete={mode === "signup" ? "new-password" : "current-password"} />
+          {mode !== "forgot" && <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete={mode === "signup" ? "new-password" : "current-password"} />}
+          {mode === "signup" && <p className="text-[12px] leading-5 text-muted">Password must be at least 12 characters.</p>}
           {mode === "signup" && <TextField label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required autoComplete="new-password" />}
+          {mode === "signin" && (
+            <button type="button" className="text-[13px] font-semibold text-gold hover:text-white" onClick={() => switchMode("forgot")}>Forgot password?</button>
+          )}
           {error && <p className="text-[13px] text-error">{error}</p>}
-          <Button type="submit" loading={loading} className="w-full">{mode === "signup" ? "Create your account" : "Sign in"}</Button>
+          {notice && <p className="text-sm leading-6 text-gold">{notice}</p>}
+          <Button type="submit" loading={loading} className="w-full">{mode === "signup" ? "Create your account" : mode === "forgot" ? "Send reset link" : "Sign in"}</Button>
         </form>
-        <button type="button" className="mt-5 text-[13px] font-semibold text-gold hover:text-white" onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(""); }}>
-          {mode === "signup" ? "Already have an account? Sign in" : "New to FinPilot? Create an account"}
+        <button type="button" className="mt-5 text-[13px] font-semibold text-gold hover:text-white" onClick={() => switchMode(mode === "signin" ? "signup" : "signin")}>
+          {mode === "signin" ? "New to FinPilot? Create an account" : "Already have an account? Sign in"}
         </button>
       </div>
     </div>,

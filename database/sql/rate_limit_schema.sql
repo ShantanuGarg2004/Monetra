@@ -24,3 +24,11 @@ CREATE TABLE IF NOT EXISTS rate_limit_events (
 
 CREATE INDEX IF NOT EXISTS idx_rl_events_created
     ON rate_limit_events (created_at);
+
+-- Auth token buckets. Fixed-window rows above stay as they are.
+-- A missing key starts full (capacity). The store writes tokens - 1 on a spend.
+CREATE TABLE IF NOT EXISTS rate_limit_token_buckets (
+    bucket_key TEXT PRIMARY KEY,
+    tokens     DOUBLE PRECISION NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

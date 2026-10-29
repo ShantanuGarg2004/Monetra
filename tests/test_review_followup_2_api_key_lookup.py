@@ -60,7 +60,8 @@ def test_new_key_lookup_does_not_check_password_hashes(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     client.post("/api/auth/logout")
-    client.delete_cookie("finpilot_session")
+    client.delete_cookie("finpilot_access")
+    client.delete_cookie("finpilot_refresh", path="/api/auth/refresh")
 
     calls = {"n": 0}
     real = repository.check_password_hash
@@ -104,7 +105,8 @@ def test_revoked_key_is_unauthorized(tmp_path, monkeypatch):
     raw_key, credential_id = issue_api_credential(account_id, "soon", ["data"])
     revoke_api_credential(credential_id)
     client.post("/api/auth/logout")
-    client.delete_cookie("finpilot_session")
+    client.delete_cookie("finpilot_access")
+    client.delete_cookie("finpilot_refresh", path="/api/auth/refresh")
     listed = client.get("/api/users", headers={"X-API-Key": raw_key})
     assert listed.status_code == 401
     assert listed.get_json()["code"] == "unauthorized"
@@ -116,7 +118,8 @@ def test_llm_scope_cannot_list_profiles(tmp_path, monkeypatch):
     account_id = client.get("/api/auth/me").get_json()["account_id"]
     raw_key, _credential_id = issue_api_credential(account_id, "llm-only", ["llm"])
     client.post("/api/auth/logout")
-    client.delete_cookie("finpilot_session")
+    client.delete_cookie("finpilot_access")
+    client.delete_cookie("finpilot_refresh", path="/api/auth/refresh")
     listed = client.get("/api/users", headers={"X-API-Key": raw_key})
     assert listed.status_code == 403
     assert listed.get_json()["code"] == "forbidden"
@@ -143,7 +146,8 @@ def test_legacy_password_hash_still_matches(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     client.post("/api/auth/logout")
-    client.delete_cookie("finpilot_session")
+    client.delete_cookie("finpilot_access")
+    client.delete_cookie("finpilot_refresh", path="/api/auth/refresh")
     listed = client.get("/api/users", headers={"X-API-Key": raw})
     assert listed.status_code == 200
     assert listed.get_json()["users"][0]["financial_goals"] == "legacy-house"

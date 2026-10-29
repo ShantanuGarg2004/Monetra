@@ -21,8 +21,8 @@ def _client(tmp_path, monkeypatch, name="issue2.db", env="development"):
 
 
 def test_data_headers_send_the_cookie_and_not_the_api_key():
-    headers = data_headers(cookie_pair("finpilot_session=abc; HttpOnly; Path=/"))
-    assert headers["Cookie"] == "finpilot_session=abc"
+    headers = data_headers(cookie_pair("finpilot_access=abc; HttpOnly; Path=/"))
+    assert headers["Cookie"] == "finpilot_access=abc"
     assert "X-API-Key" not in headers
 
 

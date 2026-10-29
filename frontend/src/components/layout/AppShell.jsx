@@ -3,7 +3,7 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import { PAGE_TITLES } from "./nav";
 
-export default function AppShell({ activePage, path, onNavigate, hasUser, activeGoal, onNewProfile, fullBleed = false, accountEmail, onSignOut, children }) {
+export default function AppShell({ activePage, path, onNavigate, hasUser, activeGoal, onNewProfile, onSettings, fullBleed = false, accountEmail, onSignOut, children }) {
   const [open, setOpen] = useState(false);
 
   const navigate = useCallback(
@@ -21,6 +21,7 @@ export default function AppShell({ activePage, path, onNavigate, hasUser, active
         title={PAGE_TITLES[activePage]}
         activeGoal={activeGoal}
         onNewProfile={onNewProfile}
+        onSettings={onSettings}
         onMenu={() => setOpen(true)}
       />
 

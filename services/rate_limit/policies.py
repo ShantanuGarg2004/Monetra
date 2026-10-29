@@ -15,6 +15,9 @@ class LimitRule:
     limit: int
     window_seconds: int
     per_user: bool = False
+    token_bucket: bool = False
+    refill_per_second: float = 0.0
+    key_scope: str = ""
 
 
 @dataclass(frozen=True)
@@ -27,6 +30,7 @@ class LimitDecision:
     window_seconds: int | None = None
     fail_open: bool = False
     exempt: bool = False
+    store_error: bool = False
     code: str = "rate_limit_exceeded"
 
 
@@ -34,6 +38,18 @@ def _rule(route_class: str, expr: str, per_user: bool = False) -> LimitRule:
     """Parse a limits expression such as '5 per minute' or '10 per hour'."""
     item = parse(expr)
     return LimitRule(route_class, int(item.amount), int(item.get_expiry()), per_user)
+
+
+def _token_rule(route_class: str, capacity: int, refill_seconds: int, key_scope: str) -> LimitRule:
+    """A full bucket holds `capacity` tokens and gains one token each `refill_seconds`."""
+    return LimitRule(
+        route_class,
+        capacity,
+        refill_seconds,
+        token_bucket=True,
+        refill_per_second=1 / refill_seconds,
+        key_scope=key_scope,
+    )
 
 
 class PolicyRegistry:
@@ -53,7 +69,19 @@ class PolicyRegistry:
         self.llm_chat_user = _rule("llm_chat", Config.RATELIMIT_LLM_CHAT_USER, per_user=True)
         self.llm_report = _rule("llm_report", Config.RATELIMIT_LLM_REPORT)
         self.llm_report_user = _rule("llm_report", Config.RATELIMIT_LLM_REPORT_USER, per_user=True)
-        self.auth_attempt = _rule("auth_attempt", Config.RATELIMIT_AUTH)
+        self.auth_ip = _token_rule("auth_ip", 8, 15, "ip")
+        self.auth_account = _token_rule("auth_account", 5, 600, "email")
+        self.auth_refresh = _token_rule("auth_refresh", 4, 60, "session")
+        self.auth_resend = _token_rule("auth_resend", 3, 600, "email")
+        self.auth_account_action = _token_rule("auth_account_action", 5, 60, "account")
+        self.auth_challenge = LimitRule(
+            "auth_challenge",
+            5,
+            0,
+            token_bucket=True,
+            refill_per_second=0.0,
+            key_scope="challenge",
+        )
         self.credential_failure = _rule("credential_failure", Config.RATELIMIT_AUTH)
 
     def rules_for(self, method: str, path: str) -> list[LimitRule] | None:
@@ -66,9 +94,28 @@ class PolicyRegistry:
         if path.rstrip("/") in ("/api/health", "/health"):
             return []
 
-        if path.rstrip("/") in ("/api/auth/login", "/api/auth/signup") and method == "POST":
-            return [self.auth_attempt]
+        if path.rstrip("/") in (
+            "/api/auth/login",
+            "/api/auth/signup",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password",
+        ) and method == "POST":
+            return [self.auth_ip]
         if path.rstrip("/") == "/api/auth/logout" and method == "POST":
+            return []
+        if path.rstrip("/") == "/api/auth/refresh" and method == "POST":
+            return [self.auth_refresh]
+        if path.rstrip("/") == "/api/auth/verify-email" and method == "POST":
+            return [self.auth_ip]
+        if path.rstrip("/") == "/api/auth/resend-verification" and method == "POST":
+            return [self.auth_resend]
+        if path.rstrip("/") in (
+            "/api/auth/change-email",
+            "/api/auth/change-password",
+            "/api/auth/delete-account",
+        ) and method == "POST":
+            return [self.auth_account_action]
+        if path.rstrip("/") == "/api/auth/confirm-email" and method == "POST":
             return []
         if path.rstrip("/") == "/api/auth/me" and method == "GET":
             return [self.read_light]
@@ -82,6 +129,8 @@ class PolicyRegistry:
         if method == "GET" and re.match(r"^/api/chat/history/\d+$", path):
             return [self.read_chat]
 
+        if method == "GET" and re.match(r"^/api/profile/\d+$", path):
+            return [self.read_light]
         if method == "POST" and path.rstrip("/") == "/api/profile":
             return [self.write_profile]
         if method == "DELETE" and re.match(r"^/api/profile/\d+$", path):
@@ -105,3 +154,14 @@ class PolicyRegistry:
     @staticmethod
     def is_expensive(route_class: str | None) -> bool:
         return PolicyRegistry.is_llm(route_class) or route_class == "pdf_rebuild"
+
+    @staticmethod
+    def fails_closed(route_class: str | None) -> bool:
+        return PolicyRegistry.is_expensive(route_class) or route_class in (
+            "auth_ip",
+            "auth_account",
+            "auth_refresh",
+            "auth_resend",
+            "auth_challenge",
+            "auth_account_action",
+        )

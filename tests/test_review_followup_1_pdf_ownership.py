@@ -48,7 +48,8 @@ def _create(client, goals):
 
 def _drop_cookie(client):
     client.post("/api/auth/logout")
-    client.delete_cookie("finpilot_session")
+    client.delete_cookie("finpilot_access")
+    client.delete_cookie("finpilot_refresh", path="/api/auth/refresh")
 
 
 def test_owner_downloads_pdf_and_stranger_gets_the_missing_report_body(tmp_path, monkeypatch):

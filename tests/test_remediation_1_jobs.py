@@ -4,7 +4,7 @@ import json
 import config
 import database.db as db_mod
 from app import create_app
-from database.repository import enqueue_report_job, get_report_job
+from database.repository import enqueue_report_job, get_report_job, mark_email_verified
 from conftest import sign_in
 from services.jobs.worker import process_once
 from services.rate_limit import gateway as gw_mod
@@ -88,6 +88,7 @@ def test_other_account_cannot_enqueue(tmp_path, monkeypatch):
         headers={"Content-Type": "application/json"},
     )
     assert signup.status_code == 201
+    mark_email_verified(signup.get_json()["account_id"])
     created = owner.post(
         "/api/profile",
         data=json.dumps(_profile()),
@@ -96,7 +97,7 @@ def test_other_account_cannot_enqueue(tmp_path, monkeypatch):
     user_id = created.get_json()["user_id"]
 
     stranger = _client(tmp_path, monkeypatch, "own.db")
-    assert stranger.post(
+    stranger_signup = stranger.post(
         "/api/auth/signup",
         data=json.dumps({
             "email": "stranger@example.com",
@@ -104,7 +105,9 @@ def test_other_account_cannot_enqueue(tmp_path, monkeypatch):
             "confirm_password": "correct-horse",
         }),
         headers={"Content-Type": "application/json"},
-    ).status_code == 201
+    )
+    assert stranger_signup.status_code == 201
+    mark_email_verified(stranger_signup.get_json()["account_id"])
     denied = stranger.post(
         "/api/generate-report",
         data=json.dumps({"user_id": user_id}),
